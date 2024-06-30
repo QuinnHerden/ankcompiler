@@ -1,6 +1,7 @@
 [project]
 name = "ankcompiler"
 description = "A CLI tool for compiling Anki decks, defined in Markdown"
+version = "0.1.2"
 authors = [
     {name = "Quinn Herden", email = "55929299+QuinnHerden@users.noreply.github.com"},
 ]
@@ -16,7 +17,6 @@ dependencies = [
 requires-python = ">=3.12"
 readme = "README.md"
 license = {text = "MIT"}
-version = "0.1.1"
 
 [tool.pdm]
 distribution = true

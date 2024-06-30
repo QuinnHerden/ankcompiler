@@ -10,11 +10,6 @@ app.add_typer(deck_app, name="deck")
 
 
 @app.callback(invoke_without_command=True)
-def default(
-    version: Optional[bool] = typer.Option(
-        False, "--version", help="Show version information"
-    ),
-) -> None:
+def default() -> None:
     """Welcome to the AnkiPiler!"""
-    if version:
-        typer.echo(settings.VERSION)
+    typer.echo(settings.VERSION)
