@@ -1,7 +1,6 @@
 [project]
-name = "studies"
-version = "0.1.0"
-description = ""
+name = "ankcompiler"
+description = "A CLI tool for compiling Anki decks, defined in Markdown"
 authors = [
     {name = "Quinn Herden", email = "55929299+QuinnHerden@users.noreply.github.com"},
 ]
@@ -14,12 +13,13 @@ dependencies = [
     "dataclasses>=0.6",
     "python-frontmatter>=1.1.0",
 ]
-requires-python = "==3.12.*"
+requires-python = ">=3.12"
 readme = "README.md"
 license = {text = "MIT"}
+version = "0.1.1"
 
 [tool.pdm]
-distribution = false
+distribution = true
 
 [tool.pdm.dev-dependencies]
 dev = [
@@ -29,27 +29,17 @@ dev = [
 ]
 
 [tool.pdm.scripts]
-start = "pdm run build"
-
+test = "pdm run pytest"
 fmt = "pdm run black ."
-
+check-fmt = "pdm run black --check ."
 checks = {composite  = [
        "check-fmt",
        "test"
 ]}
-check-fmt = "pdm run black --check ."
-test = "pdm run pytest"
 
-build = {composite = [
-    'list_markdown',
-    'load_markdown',
-    'parse_markdown',
-    'parse_html',
-    'generate_deck',
-]}
+[project.scripts]
+ankc = "app.main:app"
 
-list_markdown = "pdm run python -m app.main decks list"
-load_markdown  = "echo 'not implemented yet'"
-parse_markdown = "echo 'not implemented yet'"
-parse_html  = "echo 'not implemented yet'"
-generate_deck = "echo 'not implemented yet'"
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
