@@ -26,10 +26,19 @@ def split_markdown_file(file: Path) -> Tuple[dict, str]:
 
 def split_markdown_page(contents: str) -> list[Tuple[str, str]]:
     """Splits markdown input string into list of note (metadata, body)."""
-    card_pattern = re.compile(
-        r"(---\n+(.+?)\n+---\n+([\[\^\w+\]: *\w+\n+]*))", re.DOTALL
-    )
-    card_matches = card_pattern.findall(contents)
+
+    uid_exp = get_uid_expression()
+    tag_exp = get_tag_expression()
+    src_exp = get_src_expression()
+
+    etc_exp = rf"(?:{tag_exp}|{src_exp})"
+    meta_exp = rf"({etc_exp}*{uid_exp}?{etc_exp}*)"
+
+    note_exp = r"(?:---\n\s*\n+(.+?)\n\s*\n---\n+)"  # triple "-" delimited w/ internal newline padding
+    combined_exp = rf"({note_exp}{meta_exp}?)"
+
+    card_matches = re.findall(combined_exp, contents)
+
     note_blocks = []
     for match in card_matches:
         note_meta = match[2].strip()
@@ -37,6 +46,45 @@ def split_markdown_page(contents: str) -> list[Tuple[str, str]]:
         note_blocks.append((note_meta, note_body))
 
     return note_blocks
+
+
+def get_uid_expression() -> str:
+    """Returns expression to extract the guid from a note."""
+    uid_exp = (
+        rf"(?:\[\^{settings.GUID_KEY}\]:"
+        + r" *[A-Za-z0-9]{10}\n+)"  # [^uid]: abc1234XYZ
+    )
+
+    return uid_exp
+
+
+def get_tag_expression() -> str:
+    """Returns expression to extract the tags from a note."""
+    tag_exp = rf"(?:\[\^{settings.TAG_KEY}\]: *.+?\n+)"  # [^tag]: tag_name
+
+    return tag_exp
+
+
+def get_src_expression() -> str:
+    """Returns expression to extract the sources from a note."""
+    url_exp = get_url_regex_expression()
+
+    src_url_exp = rf"(?:\[(.*?)\]\({url_exp}\))"  # [display](url)
+    src_md_exp = r"(?:\[\[(.*?)\]\])"  # [[ref_document_title]]
+
+    src_link_exp = (
+        rf"(?:{src_url_exp}|{src_md_exp})"  # (display)[url] | [[ref_document_title]]
+    )
+
+    src_exp = rf"(?:\[\^{settings.SOURCE_KEY}\]: *{src_link_exp}\n+)"  # [^src]: (display)[url] | [[ref_document_title]]
+
+    return src_exp
+
+
+def get_url_regex_expression() -> str:
+    """Returns the regex expression for URLs."""
+
+    return r"\b((?:https?://|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'\".,<>?«»“”‘’]))"
 
 
 def parse_note_block(block: Tuple[str, str]) -> Note:
@@ -74,10 +122,9 @@ def extract_meta(contents: str) -> dict:
     """
     Extracts metadata dictionary from note block contents.
     """
-    meta_dict = {settings.GUID_KEY: None, settings.SOURCE_KEY: []}
+    meta_dict = {settings.GUID_KEY: None, settings.SOURCE_KEY: [], settings.TAG_KEY: []}
 
-    pattern = re.compile(r"(\[\^(\w+)\]: *(\w+))", re.DOTALL)
-    matches = pattern.findall(contents)
+    matches = re.findall(r"(\[\^(\w+)\]: *(.+))", contents)
 
     pairs = []
     for match in matches:
@@ -104,21 +151,21 @@ def classify_note(contents: str) -> NoteType:
     kind = None
 
     qa_regex = get_note_regex(NoteType.QUESTION_ANSWER)
-    qa_match = re.compile(qa_regex, re.DOTALL).findall(contents)
+    qa_match = re.findall(qa_regex, contents)
 
     fb_regex = get_note_regex(NoteType.FRONT_BACK)
-    fb_match = re.compile(fb_regex, re.DOTALL).findall(contents)
+    fb_match = re.findall(fb_regex, contents)
 
     cz_regex = get_note_regex(NoteType.CLOZE)
-    cz_match = re.compile(cz_regex, re.DOTALL).findall(contents)
+    cz_match = re.findall(cz_regex, contents)
 
     if qa_match:
         kind = NoteType.QUESTION_ANSWER
 
-    elif fb_match:
+    if fb_match:
         kind = NoteType.FRONT_BACK
 
-    elif cz_match:
+    if cz_match:
         kind = NoteType.CLOZE
 
     if kind is None:
@@ -134,13 +181,13 @@ def get_note_regex(note_type: NoteType) -> str:
     regex = None
 
     if note_type == NoteType.QUESTION_ANSWER:
-        regex = r"(.+);;;;;(.+)"
+        regex = r"(.+):::(.+)"
 
     elif note_type == NoteType.FRONT_BACK:
-        regex = r"(.+):::::(.+)"
+        regex = r"(.+)::(.+)"
 
     elif note_type == NoteType.CLOZE:
-        regex = r".*\{{c\d+::[\s\S]+?\}}.*"
+        regex = r"\{{ *c\d+ *:: *[\s\S]+? *\}}"
 
     if regex is None:
         raise ValueError("Invalid note type")
@@ -193,7 +240,8 @@ def extract_fields_qa(contents: str) -> List[str]:
     Extracts question and answer fields from note block contents.
     """
     qa_regex = get_note_regex(NoteType.QUESTION_ANSWER)
-    qa = re.compile(qa_regex, re.DOTALL).findall(contents)[0]
+    qa = re.findall(qa_regex, contents)[0]
+
     return qa
 
 
@@ -202,7 +250,8 @@ def extract_fields_fb(contents: str) -> List[str]:
     Extracts front and back fields from note block contents.
     """
     fb_regex = get_note_regex(NoteType.FRONT_BACK)
-    fb = re.compile(fb_regex, re.DOTALL).findall(contents)[0]
+    fb = re.findall(fb_regex, contents)[0]
+
     return fb
 
 
@@ -210,4 +259,5 @@ def extract_fields_cz(contents: str) -> List[str]:
     """
     Extracts cloze field from note block contents.
     """
+
     return [contents]

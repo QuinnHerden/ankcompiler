@@ -8,7 +8,7 @@ from genanki.package import Package
 
 from app.config import settings
 from app.logic.parser import parse_note_block, split_markdown_file, split_markdown_page
-from app.logic.utils import get_markdown_files, integer_hash
+from app.logic.utils import generate_integer_hash, get_markdown_files
 
 
 def list_source_decks(
@@ -99,7 +99,7 @@ def compile_deck(
 
 def create_deck(deck_name: str) -> Deck:
     """Creates a GenAnki Deck."""
-    return Deck(deck_id=integer_hash(deck_name), name=deck_name)
+    return Deck(deck_id=generate_integer_hash(deck_name), name=deck_name)
 
 
 def clean_deck_name(deck_name: str) -> str:

@@ -1,3 +1,4 @@
+import base64
 import hashlib
 from pathlib import Path
 from typing import List
@@ -42,9 +43,26 @@ def read_file(file: Path) -> str:
     return text
 
 
-def integer_hash(text: str) -> int:
-    """
-    Convert a string into a random integer from 0 to 1<<31 exclusive.
-    From https://stackoverflow.com/a/42089311/11499360
-    """
-    return int(hashlib.sha256(text.encode("utf-8")).hexdigest(), 16) % (1 << 31)
+def generate_integer_hash(text: str) -> int:
+    """Generate an integer hash value for the given input string."""
+    sha256_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    hash_value = 0
+    for i in range(0, 40, 2):
+        byte = int(sha256_hash[i : i + 2], 16)
+        for _ in range(4):
+            if (byte & 1) == 1:
+                hash_value += 1 << ((3 - _) * 8)
+            byte >>= 1
+
+    return hash_value
+
+
+def generate_string_hash(text: str) -> str:
+    """Generate a 10-character truncated SHA-256 hash."""
+    hash_object = hashlib.sha256(text.encode())
+    hash_base64 = base64.urlsafe_b64encode(hash_object.digest())
+    hash_value = hash_base64[:10].decode()
+    print(type(hash_value))
+
+    return hash_value
