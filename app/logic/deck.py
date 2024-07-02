@@ -56,10 +56,11 @@ def compile_decks(
     deck_names: List[str],
     deck_search_path: Path,
     deck_search_depth: int,
+    output_path: Path,
 ) -> None:
     """Compiles each passed deck."""
     for deck in deck_names:
-        compile_deck(deck, deck_search_path, deck_search_depth)
+        compile_deck(deck, deck_search_path, deck_search_depth, output_path)
 
 
 def get_notes(file_path) -> List[Note]:
@@ -78,6 +79,7 @@ def compile_deck(
     deck_name: str,
     deck_search_path: Path,
     deck_search_depth: int,
+    output_path: Path,
 ) -> None:
     """Packages a deck from a source deck."""
     deck = create_deck(deck_name)
@@ -94,7 +96,10 @@ def compile_deck(
         deck.add_note(note)
 
     cleaned_deck_name = clean_deck_name(deck_name)
-    Package(deck).write_to_file(f"{cleaned_deck_name}.apkg")
+    write_path = Path(f"{output_path}/{cleaned_deck_name}.apkg")
+
+    package = Package(deck)
+    package.write_to_file(write_path)
 
 
 def create_deck(deck_name: str) -> Deck:

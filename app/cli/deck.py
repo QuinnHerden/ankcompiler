@@ -54,6 +54,10 @@ def compile_src_decks(
         Optional[int],
         typer.Option(min=0, help=DEPTH_HELP_STR),
     ] = None,
+    output: Annotated[
+        Optional[Path],
+        typer.Option(help="Declare the output directory to write compiled packes to"),
+    ] = None,
 ) -> None:
     """Compiles valid source deck(s) into Anki package(s)."""
 
@@ -67,6 +71,11 @@ def compile_src_decks(
     else:
         search_depth = 0
 
+    if output:
+        output_path = Path(output)
+    else:
+        output_path = Path.cwd()
+
     decks = list_source_decks(
         decks_search_path=search_path, decks_search_depth=search_depth
     )
@@ -76,6 +85,7 @@ def compile_src_decks(
             deck_name=name,
             deck_search_path=search_path,
             deck_search_depth=search_depth,
+            output_path=output_path,
         )
 
     elif all_ is True:
@@ -83,6 +93,7 @@ def compile_src_decks(
             deck_names=decks,
             deck_search_path=search_path,
             deck_search_depth=search_depth,
+            output_path=output_path,
         )
 
     else:
