@@ -13,6 +13,7 @@ dependencies = [
     "pydantic-settings>=2.3.4",
     "dataclasses>=0.6",
     "python-frontmatter>=1.1.0",
+    "markdown>=3.6",
 ]
 requires-python = ">=3.12"
 readme = "README.md"
