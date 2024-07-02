@@ -90,13 +90,14 @@ def get_url_regex_expression() -> str:
 def parse_note_block(block: Tuple[str, str]) -> Note:
     """Parses a single note block."""
 
-    def parse_note_meta(meta: str) -> dict:
+    def parse_note_meta(meta: str) -> tuple[str, List[str]]:
         meta_dict = extract_meta(contents=meta)
         guid = meta_dict.get(settings.GUID_KEY)
+        tags = meta_dict.get(settings.TAG_KEY)
         if guid is None:
             raise ValueError("No guid found in note meta block")
 
-        return guid
+        return guid, tags
 
     def parse_note_body(body: str) -> Tuple[Model, List[str]]:
         note_type = classify_note(contents=body)
@@ -108,14 +109,10 @@ def parse_note_block(block: Tuple[str, str]) -> Note:
 
     note_meta, note_body = block[0], block[1]
 
-    guid = parse_note_meta(meta=note_meta)
+    guid, tags = parse_note_meta(meta=note_meta)
     model, fields = parse_note_body(body=note_body)
 
-    return Note(
-        guid=guid,
-        model=model,
-        fields=fields,
-    )
+    return Note(guid=guid, model=model, fields=fields, tags=tags)
 
 
 def extract_meta(contents: str) -> dict:
