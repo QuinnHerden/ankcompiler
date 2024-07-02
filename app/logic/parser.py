@@ -6,10 +6,11 @@ from typing import List, Tuple
 import frontmatter
 from genanki.model import Model
 from genanki.note import Note
+from markdown import markdown
 from yaml.constructor import ConstructorError
 
 from app.config import settings
-from app.logic.notes import NoteType, get_model_cz, get_model_fb, get_model_qa
+from app.logic.notes import NoteType, get_model_cz, get_model_qa
 from app.logic.utils import read_file
 
 
@@ -126,9 +127,6 @@ def classify_note(contents: str) -> NoteType:
     qa_regex = get_note_regex(NoteType.QUESTION_ANSWER)
     qa_match = re.compile(qa_regex, re.DOTALL).findall(contents)
 
-    fb_regex = get_note_regex(NoteType.FRONT_BACK)
-    fb_match = re.compile(fb_regex, re.DOTALL).findall(contents)
-
     cz_regex = get_note_regex(NoteType.CLOZE)
     cz_match = re.compile(cz_regex, re.DOTALL).findall(contents)
 
@@ -138,9 +136,6 @@ def classify_note(contents: str) -> NoteType:
 
     elif qa_match:
         kind = NoteType.QUESTION_ANSWER
-
-    elif fb_match:
-        kind = NoteType.FRONT_BACK
 
     if kind is None:
         raise ValueError("Invalid note type")
@@ -157,9 +152,6 @@ def get_note_regex(note_type: NoteType) -> str:
     if note_type == NoteType.QUESTION_ANSWER:
         regex = r"(.+):::(.+)"
 
-    elif note_type == NoteType.FRONT_BACK:
-        regex = r"(.+)::(.+)"
-
     elif note_type == NoteType.CLOZE:
         regex = r"\{{ *c\d+ *:: *[\s\S]+? *\}}"
 
@@ -175,9 +167,6 @@ def get_model(note_type: NoteType) -> Model:
 
     if note_type == NoteType.QUESTION_ANSWER:
         model = get_model_qa()
-
-    elif note_type == NoteType.FRONT_BACK:
-        model = get_model_fb()
 
     elif note_type == NoteType.CLOZE:
         model = get_model_cz()
@@ -197,9 +186,6 @@ def extract_fields(contents: str, note_type: NoteType) -> List[str]:
     if note_type == NoteType.QUESTION_ANSWER:
         extract = extract_fields_qa(contents)
 
-    elif note_type == NoteType.FRONT_BACK:
-        extract = extract_fields_fb(contents)
-
     elif note_type == NoteType.CLOZE:
         extract = extract_fields_cz(contents)
 
@@ -214,22 +200,33 @@ def extract_fields_qa(contents: str) -> List[str]:
     Extracts question and answer fields from note block contents.
     """
     qa_regex = get_note_regex(NoteType.QUESTION_ANSWER)
-    qa = re.compile(qa_regex, re.DOTALL).findall(contents)[0]
-    return qa
+    matches = re.compile(qa_regex, re.DOTALL).findall(contents)
+    if len(matches) != 1:
+        raise ValueError("Could not extract fields from note")
 
+    md_fields = matches[0]
+    html_fields = convert_to_html(md_fields)
 
-def extract_fields_fb(contents: str) -> List[str]:
-    """
-    Extracts front and back fields from note block contents.
-    """
-    fb_regex = get_note_regex(NoteType.FRONT_BACK)
-    fb = re.compile(fb_regex, re.DOTALL).findall(contents)[0]
-    return fb
+    return html_fields
 
 
 def extract_fields_cz(contents: str) -> List[str]:
     """
     Extracts cloze field from note block contents.
     """
+    md_fields = [contents]
+    html_fields = convert_to_html(md_fields)
 
-    return [contents]
+    return html_fields
+
+
+def convert_to_html(md_fields: List[str]) -> List[str]:
+    """
+    Converts markdown text to HTML.
+    """
+    html_fields = []
+    for field in md_fields:
+        md_field = markdown(field, extensions=["markdown.extensions.fenced_code"])
+        html_fields.append(md_field)
+
+    return html_fields

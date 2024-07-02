@@ -7,50 +7,23 @@ class NoteType(Enum):
     """Types of Anki notes"""
 
     QUESTION_ANSWER = auto()
-    FRONT_BACK = auto()
     CLOZE = auto()
 
 
 def get_model_qa() -> Model:
     """Get model for Question-Answer Anki notes."""
     return Model(
-        model_id=NoteType.QUESTION_ANSWER.value,
-        name=NoteType.QUESTION_ANSWER.name,
+        model_id="1764365620",
+        name="AnkCompiler-Question_Answer",
         fields=[{"name": "Question"}, {"name": "Answer"}],
         templates=[
             {
-                "name": NoteType.QUESTION_ANSWER.name,
-                "qfmt": '<div class="card">'
-                + '<div class="question">{{Question}}</div>'
-                + "</div>",
-                "afmt": '<div class="card">'
-                + '<div class="question">{{Question}}</div>'
-                + "<hr>"
-                + '<div class="answer">{{Answer}}</div>'
-                + "</div>",
+                "name": "QA",
+                "qfmt": "{{Question}}",
+                "afmt": "{{Question}}" + "<hr id=answer>" + "{{Answer}}",
             },
         ],
-        model_type=Model.FRONT_BACK,
-    )
-
-
-def get_model_fb() -> Model:
-    """Get model for Front-Back Anki notes."""
-    return Model(
-        model_id=NoteType.FRONT_BACK.value,
-        name=NoteType.FRONT_BACK.name,
-        fields=[{"name": "Front"}, {"name": "Back"}],
-        templates=[
-            {
-                "name": NoteType.FRONT_BACK.name,
-                "qfmt": '<div class="card">'
-                + '<div class="front">{{Front}}</div>'
-                + "</div>",
-                "afmt": '<div class="card">'
-                + '<div class="back">{{Back}}</div>'
-                + "</div>",
-            },
-        ],
+        css=get_default_css(),
         model_type=Model.FRONT_BACK,
     )
 
@@ -59,18 +32,21 @@ def get_model_cz() -> Model:
     """Get model for Cloze Anki notes."""
 
     return Model(
-        model_id=NoteType.CLOZE.value,
-        name=NoteType.CLOZE.name,
-        fields=[{"name": "Cloze"}],
+        model_id="1783507665",
+        name="AnkCompiler-Cloze",
+        fields=[{"name": "Text"}],
         templates=[
             {
-                "name": NoteType.CLOZE.name,
-                "qfmt": '<div class="card">'
-                + '<div class="cloze">{{cloze:Cloze}}</div>'
-                + "</div>",
-                "afmt": '<div class="card">'
-                + '<div class="question">{{cloze:Cloze}}</div>',
+                "name": "Cloze",
+                "qfmt": "{{cloze:Text}}",
+                "afmt": "{{cloze:Text}}",
             },
         ],
+        css=get_default_css(),
         model_type=Model.CLOZE,
     )
+
+
+def get_default_css() -> str:
+    """Get default CSS."""
+    return '@import url("_stylesheet.css");\n.nightMode {};'
