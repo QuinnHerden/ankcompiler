@@ -29,10 +29,8 @@ def split_markdown_page(contents: str) -> list[Tuple[str, str]]:
 
     uid_exp = get_uid_expression()
     tag_exp = get_tag_expression()
-    src_exp = get_src_expression()
 
-    etc_exp = rf"(?:{tag_exp}|{src_exp})"
-    meta_exp = rf"({etc_exp}*{uid_exp}?{etc_exp}*)"
+    meta_exp = rf"({tag_exp}*{uid_exp}?{tag_exp}*)"
 
     note_exp = r"(?:---\n\s*\n+(.(?:.|\n)+?.)\n\s*\n---\n+)"  # triple "-" delimited w/ internal newline padding
     combined_exp = rf"({note_exp}{meta_exp}?)"
@@ -63,28 +61,6 @@ def get_tag_expression() -> str:
     tag_exp = rf"(?:\[\^{settings.TAG_KEY}\]: *.+?\n+)"  # [^tag]: tag_name
 
     return tag_exp
-
-
-def get_src_expression() -> str:
-    """Returns expression to extract the sources from a note."""
-    url_exp = get_url_regex_expression()
-
-    src_url_exp = rf"(?:\[(.*?)\]\({url_exp}\))"  # [display](url)
-    src_md_exp = r"(?:\[\[(.*?)\]\])"  # [[ref_document_title]]
-
-    src_link_exp = (
-        rf"(?:{src_url_exp}|{src_md_exp})"  # (display)[url] | [[ref_document_title]]
-    )
-
-    src_exp = rf"(?:\[\^{settings.SOURCE_KEY}\]: *{src_link_exp}\n+)"  # [^src]: (display)[url] | [[ref_document_title]]
-
-    return src_exp
-
-
-def get_url_regex_expression() -> str:
-    """Returns the regex expression for URLs."""
-
-    return r"\b((?:https?://|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'\".,<>?«»“”‘’]))"
 
 
 def parse_note_block(block: Tuple[str, str]) -> Note:
@@ -119,7 +95,7 @@ def extract_meta(contents: str) -> dict:
     """
     Extracts metadata dictionary from note block contents.
     """
-    meta_dict = {settings.GUID_KEY: None, settings.SOURCE_KEY: [], settings.TAG_KEY: []}
+    meta_dict = {settings.GUID_KEY: None, settings.TAG_KEY: []}
 
     matches = re.findall(r"(\[\^(\w+)\]: *(.+))", contents)
 

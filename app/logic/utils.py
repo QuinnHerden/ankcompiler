@@ -66,3 +66,13 @@ def generate_string_hash(text: str) -> str:
     print(type(hash_value))
 
     return hash_value
+
+
+def get_url_regex_expression() -> str:
+    """Returns the regex expression for URLs."""
+
+    return (
+        r"\b((?:https?://|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+"
+        r"|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))"
+        r"*\)|[^\s`!()\[\]{};:'\".,<>?«»“”‘’]))"
+    )
