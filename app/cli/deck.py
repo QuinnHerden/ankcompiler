@@ -3,7 +3,7 @@ from typing import Annotated, Optional
 
 import typer
 
-from app.logic.deck import compile_deck, compile_decks, list_source_decks
+from app.logic.drivers import compile_source, compile_sources, list_source_names
 
 deck_app = typer.Typer()
 
@@ -28,15 +28,15 @@ def list_src_decks(
     else:
         search_depth = 0
 
-    dirs = list_source_decks(
+    source_names = list_source_names(
         decks_search_path=search_path, decks_search_depth=search_depth
     )
 
-    if len(dirs) == 0:
+    if len(source_names) == 0:
         typer.echo("No valid source decks found")
         raise typer.Exit(1)
 
-    typer.echo(dirs)
+    typer.echo(source_names)
 
 
 @deck_app.command("compile")
@@ -76,23 +76,23 @@ def compile_src_decks(
     else:
         output_path = Path.cwd()
 
-    decks = list_source_decks(
+    source_names = list_source_names(
         decks_search_path=search_path, decks_search_depth=search_depth
     )
 
-    if all_ is False and name in decks:
-        compile_deck(
-            deck_name=name,
-            deck_search_path=search_path,
-            deck_search_depth=search_depth,
+    if all_ is False and name in source_names:
+        compile_source(
+            source_name=name,
+            source_search_path=search_path,
+            source_search_depth=search_depth,
             output_path=output_path,
         )
 
     elif all_ is True:
-        compile_decks(
-            deck_names=decks,
-            deck_search_path=search_path,
-            deck_search_depth=search_depth,
+        compile_sources(
+            source_names=source_names,
+            source_search_path=search_path,
+            source_search_depth=search_depth,
             output_path=output_path,
         )
 
