@@ -34,7 +34,7 @@ def split_markdown_page(contents: str) -> list[Tuple[str, str]]:
     etc_exp = rf"(?:{tag_exp}|{src_exp})"
     meta_exp = rf"({etc_exp}*{uid_exp}?{etc_exp}*)"
 
-    note_exp = r"(?:---\n\s*\n+(.+?)\n\s*\n---\n+)"  # triple "-" delimited w/ internal newline padding
+    note_exp = r"(?:---\n\s*\n+(.(?:.|\n)+?.)\n\s*\n---\n+)"  # triple "-" delimited w/ internal newline padding
     combined_exp = rf"({note_exp}{meta_exp}?)"
 
     card_matches = re.findall(combined_exp, contents)
@@ -151,22 +151,23 @@ def classify_note(contents: str) -> NoteType:
     kind = None
 
     qa_regex = get_note_regex(NoteType.QUESTION_ANSWER)
-    qa_match = re.findall(qa_regex, contents)
+    qa_match = re.compile(qa_regex, re.DOTALL).findall(contents)
 
     fb_regex = get_note_regex(NoteType.FRONT_BACK)
-    fb_match = re.findall(fb_regex, contents)
+    fb_match = re.compile(fb_regex, re.DOTALL).findall(contents)
 
     cz_regex = get_note_regex(NoteType.CLOZE)
-    cz_match = re.findall(cz_regex, contents)
+    cz_match = re.compile(cz_regex, re.DOTALL).findall(contents)
 
-    if qa_match:
-        kind = NoteType.QUESTION_ANSWER
-
-    if fb_match:
-        kind = NoteType.FRONT_BACK
-
+    # ordering from most specific to least
     if cz_match:
         kind = NoteType.CLOZE
+
+    elif qa_match:
+        kind = NoteType.QUESTION_ANSWER
+
+    elif fb_match:
+        kind = NoteType.FRONT_BACK
 
     if kind is None:
         raise ValueError("Invalid note type")
@@ -240,8 +241,7 @@ def extract_fields_qa(contents: str) -> List[str]:
     Extracts question and answer fields from note block contents.
     """
     qa_regex = get_note_regex(NoteType.QUESTION_ANSWER)
-    qa = re.findall(qa_regex, contents)[0]
-
+    qa = re.compile(qa_regex, re.DOTALL).findall(contents)[0]
     return qa
 
 
@@ -250,8 +250,7 @@ def extract_fields_fb(contents: str) -> List[str]:
     Extracts front and back fields from note block contents.
     """
     fb_regex = get_note_regex(NoteType.FRONT_BACK)
-    fb = re.findall(fb_regex, contents)[0]
-
+    fb = re.compile(fb_regex, re.DOTALL).findall(contents)[0]
     return fb
 
 
