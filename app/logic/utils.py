@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import logging
+import os
 import re
 from pathlib import Path
 from typing import List, Tuple
@@ -78,14 +79,16 @@ def generate_integer_hash(text: str) -> int:
     return hash_value
 
 
-def generate_string_hash(text: str) -> str:
-    """Generate a 10-character truncated SHA-256 hash."""
-    hash_object = hashlib.sha256(text.encode())
-    hash_base64 = base64.urlsafe_b64encode(hash_object.digest())
-    hash_value = hash_base64[:10].decode()
-    print(type(hash_value))
+def generate_random_string(length: int = 10) -> str:
+    """
+    Generate a random string of a specified length using base64 encoding and
+    restricting characters to A-Z, a-z, and 0-9.
+    """
+    random_bytes = os.urandom(length)
+    random_base64 = base64.b64encode(random_bytes).decode("utf-8")
+    random_string = "".join(filter(str.isalnum, random_base64))[:length]
 
-    return hash_value
+    return random_string
 
 
 def get_url_regex_expression() -> str:
