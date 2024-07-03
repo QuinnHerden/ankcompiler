@@ -56,5 +56,5 @@ def compile_src_decks(
         )
 
     else:
-        typer.echo("Not an valid source selection cmd.")
+        typer.echo("Not a valid source selection.")
         raise typer.Exit(1)

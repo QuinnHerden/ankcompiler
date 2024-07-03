@@ -137,6 +137,10 @@ class File:
 
         return meta_tags
 
+    def get_name(self) -> str:
+        """Return title of the file"""
+        return Path(self.path).name
+
 
 @dataclass
 class Chunk:
@@ -178,11 +182,13 @@ class Chunk:
 
     def _extract_meta(self) -> dict:
         """
-        Extracts metadata from note chunk.
+        Extracts footer metadata from note chunk.
         """
         meta_dict = {settings.GUID_KEY: None, settings.TAG_KEY: []}
 
-        matches = re.findall(r"(\[\^(\w+)\]: *(.+))", self.meta)
+        matches = re.findall(
+            r"(\[\^(\w+)\]: *(\w+))", self.meta
+        )  # [^example_key]: example_value
 
         pairs = []
         for match in matches:
@@ -225,8 +231,20 @@ class Chunk:
         """
         Extracts presentation-ready fields from note chunk.
         """
+        fields = []
 
         html_fields = self._extract_html_fields()
+        fields.extend(html_fields)
+
+        source_file_name = self.file.get_name()
+        fields.append(source_file_name)
+
+        return fields
+
+    def _extract_html_fields(self) -> List[str]:
+        """Extracts HTML fields from note chunk."""
+        md_fields = self._extract_md_fields()
+        html_fields = convert_md_to_html(md_fields)
 
         return html_fields
 
@@ -246,13 +264,6 @@ class Chunk:
             md_fields = matches
 
         return md_fields
-
-    def _extract_html_fields(self) -> List[str]:
-        """Extracts HTML fields from note chunk."""
-        md_fields = self._extract_md_fields()
-        html_fields = convert_md_to_html(md_fields)
-
-        return html_fields
 
     def _extract_images(self) -> List[Path]:
         """Extracts image paths from note chunk."""
@@ -297,7 +308,11 @@ class NoteType:
                 model=GenAnkiModel(
                     model_id="1764365620",
                     name="AnkCompiler-Question_Answer",
-                    fields=[{"name": "Question"}, {"name": "Answer"}],
+                    fields=[
+                        {"name": "Question"},
+                        {"name": "Answer"},
+                        {"name": "Source"},
+                    ],
                     templates=[
                         {
                             "name": "QA",
@@ -315,7 +330,7 @@ class NoteType:
                 model=GenAnkiModel(
                     model_id="1783507665",
                     name="AnkCompiler-Cloze",
-                    fields=[{"name": "Text"}],
+                    fields=[{"name": "Text"}, {"name": "Source"}],
                     templates=[
                         {
                             "name": "Cloze",
