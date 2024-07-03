@@ -3,7 +3,11 @@ from typing import List
 
 from app.config import settings
 from app.logic.sources import Deck
-from app.logic.utils import parse_markdown_file, search_markdown_files
+from app.logic.utils import (
+    generate_random_string,
+    parse_markdown_file,
+    search_markdown_files,
+)
 
 
 def compile_deck(
@@ -64,7 +68,7 @@ def list_source_files(
     source_search_path: Path,
     source_search_depth: int,
 ) -> List[Path]:
-    """Returns a list of all source file paths for a deck"""
+    """Returns a list of all source file paths for a deck."""
     deck = Deck(
         name=deck_name,
         source_search_path=source_search_path,
@@ -73,3 +77,9 @@ def list_source_files(
     paths = deck.get_source_file_paths()
 
     return paths
+
+
+def generate_chunk() -> str:
+    """Returns an empty note chunk string."""
+    uid = generate_random_string(length=10)
+    return f"---\n---\n[^uid]: {uid}"
