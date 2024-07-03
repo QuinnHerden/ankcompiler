@@ -2,49 +2,49 @@ from pathlib import Path
 from typing import List
 
 from app.config import settings
-from app.logic.sources import Source
+from app.logic.sources import Deck
 from app.logic.utils import parse_markdown_file, search_markdown_files
 
 
-def compile_source(
-    source_name: str,
+def compile_deck(
+    deck_name: str,
     source_search_path: Path,
     source_search_depth: int,
     output_path: Path,
 ) -> None:
-    """Compiles a single source."""
-    source = Source(
-        name=source_name,
-        search_path=source_search_path,
-        search_depth=source_search_depth,
+    """Compiles a single deck."""
+    source = Deck(
+        name=deck_name,
+        source_search_path=source_search_path,
+        source_search_depth=source_search_depth,
     )
     source.compile(output_path=output_path)
 
 
-def compile_sources(
-    source_names: List[str],
+def compile_decks(
+    deck_names: List[str],
     source_search_path: Path,
     source_search_depth: int,
     output_path: Path,
 ) -> None:
-    """Compiles a list of sources."""
-    for source_name in source_names:
-        compile_source(
-            source_name=source_name,
+    """Compiles a list of source decks."""
+    for source_name in deck_names:
+        compile_deck(
+            deck_name=source_name,
             source_search_path=source_search_path,
             source_search_depth=source_search_depth,
             output_path=output_path,
         )
 
 
-def list_source_names(
-    decks_search_path: Path,
-    decks_search_depth: int,
+def list_source_decks(
+    source_search_path: Path,
+    source_search_depth: int,
 ) -> List[str]:
-    """Returns list of all sourceß names."""
+    """Returns list of all source deck names."""
     markdown_file_paths = search_markdown_files(
-        search_dir=decks_search_path,
-        search_depth=decks_search_depth,
+        search_path=source_search_path,
+        search_depth=source_search_depth,
     )
 
     deck_set = set()
@@ -60,16 +60,16 @@ def list_source_names(
 
 
 def list_source_files(
-    source_name: str,
+    deck_name: str,
     source_search_path: Path,
     source_search_depth: int,
-) -> None:
-    """Compiles a single source."""
-    source = Source(
-        name=source_name,
-        search_path=source_search_path,
-        search_depth=source_search_depth,
+) -> List[Path]:
+    """Returns a list of all source file paths for a deck"""
+    deck = Deck(
+        name=deck_name,
+        source_search_path=source_search_path,
+        source_search_depth=source_search_depth,
     )
-    paths = source.get_source_file_paths()
+    paths = deck.get_source_file_paths()
 
     return paths
