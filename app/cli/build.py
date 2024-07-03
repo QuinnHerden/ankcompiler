@@ -15,7 +15,7 @@ def compile_src_decks(
         Optional[bool],
         typer.Option("--all", help="Compile every deck"),
     ] = False,
-    name: Annotated[Optional[str], typer.Option(help="Compile explicit deck")] = None,
+    deck: Annotated[Optional[str], typer.Option(help="Compile explicit deck")] = None,
     path: Annotated[
         Optional[Path],
         typer.Option(help=PATH_HELP_STR),
@@ -39,9 +39,9 @@ def compile_src_decks(
         source_search_path=search_path, source_search_depth=search_depth
     )
 
-    if all_ is False and name in source_names:
+    if all_ is False and deck in source_names:
         compile_deck(
-            deck_name=name,
+            deck_name=deck,
             source_search_path=search_path,
             source_search_depth=search_depth,
             output_path=output_path,
