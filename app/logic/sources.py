@@ -223,8 +223,15 @@ class Chunk:
 
     def _extract_fields(self) -> List[str]:
         """
-        Extracts fields from note chunk.
+        Extracts presentation-ready fields from note chunk.
         """
+
+        html_fields = self._extract_html_fields()
+
+        return html_fields
+
+    def _extract_md_fields(self) -> List[str]:
+        """Extracts markdown fields from note chunk."""
         note_type = self._extract_type()
 
         matches = re.compile(note_type.regex, re.DOTALL).findall(self.body)
@@ -232,20 +239,36 @@ class Chunk:
         if len(matches) != 1:
             raise ValueError("Could not extract content from chunk")
 
-        elif isinstance(matches[0], tuple):  # need to unpack (['…', '…'])
+        if isinstance(matches[0], tuple):  # need to unpack (['…', '…'])
             md_fields = list(matches[0])
 
         elif isinstance(matches, list):  # already in correct format ['…']
             md_fields = matches
 
+        return md_fields
+
+    def _extract_html_fields(self) -> List[str]:
+        """Extracts HTML fields from note chunk."""
+        md_fields = self._extract_md_fields()
         html_fields = convert_md_to_html(md_fields)
 
         return html_fields
 
     def _extract_images(self) -> List[Path]:
         """Extracts image paths from note chunk."""
-        image_paths = []
-        return image_paths
+        html_fields = self._extract_html_fields()
+        regex = r'.*<img.*src="(.*)".*'
+
+        relative_image_paths = []
+        for field in html_fields:
+            match = re.compile(regex, re.DOTALL).findall(field)
+            if len(match) >= 1:
+                relative_image_paths = list(match)
+
+        full_image_paths = [
+            Path(self.file.path).parent / x for x in relative_image_paths
+        ]
+        return full_image_paths
 
 
 @dataclass
