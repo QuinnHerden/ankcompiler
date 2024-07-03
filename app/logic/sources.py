@@ -58,7 +58,7 @@ class Source:
 
     def get_source_files(self) -> List["File"]:
         """Returns list of all source files within scope."""
-        file_paths = self._get_source_file_paths()
+        file_paths = self.get_source_file_paths()
 
         source_files = []
         for file_path in file_paths:
@@ -67,7 +67,7 @@ class Source:
 
         return source_files
 
-    def _get_source_file_paths(self) -> List[Path]:
+    def get_source_file_paths(self) -> List[Path]:
         """Returns list of all source file paths."""
         markdown_files = search_markdown_files(
             search_dir=self.search_path, search_depth=self.search_depth

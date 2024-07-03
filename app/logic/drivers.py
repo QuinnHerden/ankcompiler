@@ -57,3 +57,19 @@ def list_source_names(
             deck_set.add(deck_name)
 
     return list(deck_set)
+
+
+def list_source_files(
+    source_name: str,
+    source_search_path: Path,
+    source_search_depth: int,
+) -> None:
+    """Compiles a single source."""
+    source = Source(
+        name=source_name,
+        search_path=source_search_path,
+        search_depth=source_search_depth,
+    )
+    paths = source.get_source_file_paths()
+
+    return paths

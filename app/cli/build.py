@@ -3,43 +3,13 @@ from typing import Annotated, Optional
 
 import typer
 
+from app.cli import DEPTH_HELP_STR, PATH_HELP_STR
 from app.logic.drivers import compile_source, compile_sources, list_source_names
 
-deck_app = typer.Typer()
-
-PATH_HELP_STR = "Declare the base directory to search for valid decks"
-DEPTH_HELP_STR = "Declare the maximum search depth for valid decks"
+build_app = typer.Typer()
 
 
-@deck_app.command("list")
-def list_src_decks(
-    path: Annotated[Optional[Path], typer.Option(help=PATH_HELP_STR)] = None,
-    depth: Annotated[Optional[int], typer.Option(min=0, help=DEPTH_HELP_STR)] = None,
-) -> None:
-    """Lists valid source decks."""
-
-    if path:
-        search_path = Path(path)
-    else:
-        search_path = Path.cwd()
-
-    if depth:
-        search_depth = depth
-    else:
-        search_depth = 0
-
-    source_names = list_source_names(
-        decks_search_path=search_path, decks_search_depth=search_depth
-    )
-
-    if len(source_names) == 0:
-        typer.echo("No valid source decks found")
-        raise typer.Exit(1)
-
-    typer.echo(source_names)
-
-
-@deck_app.command("compile")
+@build_app.callback(invoke_without_command=True)
 def compile_src_decks(
     all_: Annotated[
         Optional[bool],
@@ -49,32 +19,21 @@ def compile_src_decks(
     path: Annotated[
         Optional[Path],
         typer.Option(help=PATH_HELP_STR),
-    ] = None,
+    ] = Path("."),
     depth: Annotated[
         Optional[int],
         typer.Option(min=0, help=DEPTH_HELP_STR),
-    ] = None,
+    ] = 0,
     output: Annotated[
         Optional[Path],
         typer.Option(help="Declare the output directory to write compiled packes to"),
-    ] = None,
+    ] = Path("."),
 ) -> None:
     """Compiles valid source deck(s) into Anki package(s)."""
 
-    if path:
-        search_path = Path(path)
-    else:
-        search_path = Path.cwd()
-
-    if depth:
-        search_depth = depth
-    else:
-        search_depth = 0
-
-    if output:
-        output_path = Path(output)
-    else:
-        output_path = Path.cwd()
+    search_path = path
+    search_depth = depth
+    output_path = output
 
     source_names = list_source_names(
         decks_search_path=search_path, decks_search_depth=search_depth
@@ -97,5 +56,5 @@ def compile_src_decks(
         )
 
     else:
-        typer.echo("Not a valid deck selection.")
+        typer.echo("Not an valid source selection cmd.")
         raise typer.Exit(1)
