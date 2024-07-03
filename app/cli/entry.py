@@ -2,11 +2,13 @@ from typing import Optional
 
 import typer
 
-from app.cli.deck import deck_app
+from app.cli.build import build_app
+from app.cli.list import list_app
 from app.config import settings
 
 app = typer.Typer()
-app.add_typer(deck_app, name="deck")
+app.add_typer(build_app, name="build")
+app.add_typer(list_app, name="list")
 
 
 @app.callback(invoke_without_command=True)

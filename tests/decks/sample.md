@@ -14,17 +14,6 @@ question ::: answer note
 
 ---
 
-front :: back note
-
----
-[^uid]: 0123abcXYZ
-[^src]: [gug](https://www.google.com)
-[^src]: [[2023-09-28]]
-[^tag]: tag0
-[^tag]: tag3
-
----
-
 cloze {{c1:: note}}
 
 ---
@@ -33,3 +22,5 @@ cloze {{c1:: note}}
 [^tag]: tag3
 [^src]: [gug](https://www.google.com)
 [^src]: [[2023-09-28]]
+
+.
