@@ -33,12 +33,12 @@ def search_files(extension: str, search_dir: Path, search_depth: int) -> List[Pa
     return search(search_dir, 0)
 
 
-def search_markdown_files(search_dir: Path, search_depth: int) -> List[Path]:
+def search_markdown_files(search_path: Path, search_depth: int) -> List[Path]:
     """Get all markdown files in
     the given directory and its subdirectories
     up to the specified search depth.
     """
-    return search_files(".md", search_dir, search_depth)
+    return search_files(".md", search_path, search_depth)
 
 
 def read_file(file: Path) -> str:

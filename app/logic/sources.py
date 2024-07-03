@@ -19,13 +19,13 @@ from app.logic.utils import (
 
 
 @dataclass
-class Source:
+class Deck:
     name: str
-    search_path: Path
-    search_depth: int
+    source_search_path: Path
+    source_search_depth: int
 
     def compile(self, output_path: Path) -> None:
-        """Packages a deck from source."""
+        """Packages a deck."""
         deck_id = generate_integer_hash(self.name)
         deck = GenAnkiDeck(deck_id=deck_id, name=self.name)
         package = GenAnkiPackage(deck)
@@ -70,7 +70,7 @@ class Source:
     def get_source_file_paths(self) -> List[Path]:
         """Returns list of all source file paths."""
         markdown_files = search_markdown_files(
-            search_dir=self.search_path, search_depth=self.search_depth
+            search_path=self.source_search_path, search_depth=self.source_search_depth
         )
 
         deck_paths = []

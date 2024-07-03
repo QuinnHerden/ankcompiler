@@ -4,7 +4,7 @@ from typing import Annotated, Optional
 import typer
 
 from app.cli import DEPTH_HELP_STR, PATH_HELP_STR
-from app.logic.drivers import compile_source, compile_sources, list_source_names
+from app.logic.drivers import compile_deck, compile_decks, list_source_decks
 
 build_app = typer.Typer()
 
@@ -26,30 +26,30 @@ def compile_src_decks(
     ] = 0,
     output: Annotated[
         Optional[Path],
-        typer.Option(help="Declare the output directory to write compiled packes to"),
+        typer.Option(help="Declare the output directory to write compiled packages to"),
     ] = Path("."),
 ) -> None:
-    """Compiles valid source deck(s) into Anki package(s)."""
+    """Compiles valid deck(s) into Anki package(s)."""
 
     search_path = path
     search_depth = depth
     output_path = output
 
-    source_names = list_source_names(
-        decks_search_path=search_path, decks_search_depth=search_depth
+    source_names = list_source_decks(
+        source_search_path=search_path, source_search_depth=search_depth
     )
 
     if all_ is False and name in source_names:
-        compile_source(
-            source_name=name,
+        compile_deck(
+            deck_name=name,
             source_search_path=search_path,
             source_search_depth=search_depth,
             output_path=output_path,
         )
 
     elif all_ is True:
-        compile_sources(
-            source_names=source_names,
+        compile_decks(
+            deck_names=source_names,
             source_search_path=search_path,
             source_search_depth=search_depth,
             output_path=output_path,
