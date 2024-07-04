@@ -15,7 +15,7 @@ dependencies = [
     "python-frontmatter>=1.1.0",
     "markdown>=3.6",
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.9"
 readme = "README.md"
 license = {text = "MIT"}
 
