@@ -28,6 +28,19 @@ class TestEntry:
             raise AssertionError(f"Unexpected version format: {result.stdout}")
 
 
+class TestGen:
+    @staticmethod
+    def test_gen_chunk():
+        result = runner.invoke(
+            app,
+            [
+                "gen",
+                "chunk",
+            ],
+        )
+        assert result.exit_code == 0
+
+
 class TestList:
     @staticmethod
     def test_list_deck():

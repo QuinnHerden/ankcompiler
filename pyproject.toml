@@ -27,15 +27,20 @@ dev = [
     "black>=24.4.2",
     "flake8>=7.1.0",
     "pytest>=8.2.2",
+    "bandit>=1.7.9",
 ]
 
 [tool.pdm.scripts]
+release = "sh scripts/check_release.sh"
+format = "pdm run black --check ."
+secure = "pdm run bandit -r app -ll"
 test = "pdm run pytest"
-fmt = "pdm run black ."
-check-fmt = "pdm run black --check ."
-checks = {composite  = [
-       "check-fmt",
-       "test"
+
+check = {composite  = [
+    "release",
+    "format",
+    "secure",
+    "test",
 ]}
 
 [project.scripts]
