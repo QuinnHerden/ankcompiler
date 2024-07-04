@@ -16,12 +16,9 @@ on:
       - release/**
       - releases/**
       - main
-env:
-  TARGET: ${{ github.ref_name || github.head_ref }}
 
 jobs:
   checks:
-
     strategy:
         matrix:
           python-version: [3.11, 3.12]
@@ -33,7 +30,7 @@ jobs:
       - name: Run Release Check
         shell: bash
         run: |
-          bash scripts/check_release.sh $TARGET
+          bash scripts/check_release.sh
 
       - name: Setup PDM
         uses: pdm-project/setup-pdm@v4
