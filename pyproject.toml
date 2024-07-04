@@ -1,7 +1,7 @@
 [project]
 name = "ankcompiler"
 description = "A CLI tool for compiling Anki decks, defined in Markdown"
-version = "0.1.3"
+version = "0.1.4"
 authors = [
     {name = "Quinn Herden", email = "55929299+QuinnHerden@users.noreply.github.com"},
 ]
