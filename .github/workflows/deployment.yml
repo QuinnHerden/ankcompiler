@@ -28,4 +28,7 @@ jobs:
         run: pdm build
       
       - name: Run Publish
-        run: pdm publish --username --password
+        run: pdm publish
+        env:
+          PDM_PUBLISH_USERNAME: ${{ secrets.PDM_PUBLISH_USERNAME }}
+          PDM_PUBLISH_PASSWORD: ${{ secrets.PDM_PUBLISH_PASSWORD }}
