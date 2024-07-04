@@ -19,7 +19,7 @@ if [[ ! $config_version =~ $version_pattern ]]; then
 fi
 
 # Check if all versions are equivalent
-if [[ $target_version != $config_version ]]; then
+if [[ $pyproject_version != $config_version ]]; then
     echo "Versions are not equivalent."
     exit 1
 fi
