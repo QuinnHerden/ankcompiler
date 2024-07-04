@@ -1,12 +1,16 @@
-name: Release Pipeline
+name: Deployment
 
 on:
-  push:
+  pull_request:
+    types:
+      - closed
     branches:
       - main
 
 jobs:
-  release:
+  deployment:
+    if: github.event.pull_request.merged == true
+
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,5 +20,12 @@ jobs:
         with:
           python-version: 3.12
           cache: true
+
       - name: Install dependencies
         run: pdm install
+
+      - name: Run Build
+        run: pdm build
+      
+      - name: Run Publish
+        run: pdm publish
