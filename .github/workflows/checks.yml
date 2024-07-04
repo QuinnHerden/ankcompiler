@@ -1,0 +1,50 @@
+name: CI Checks
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/**
+      - features/**
+  pull_request:
+    types:
+      - opened
+      - reopened
+    branches:
+      - dev
+      - release/**
+      - releases/**
+      - main
+
+jobs:
+  checks:
+    strategy:
+        matrix:
+          python-version: [3.11, 3.12]
+
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Release Check
+        shell: bash
+        run: |
+          bash scripts/check_release.sh
+
+      - name: Setup PDM
+        uses: pdm-project/setup-pdm@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: true
+
+      - name: Install dependencies
+        run: pdm install
+
+      - name: Run Format Check
+        run: pdm run format
+      
+      - name: Run Security Check
+        run: pdm run secure
+      
+      - name: Run Test Suite
+        run: pdm run test
