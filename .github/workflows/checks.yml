@@ -42,7 +42,7 @@ jobs:
       - name: Run Release Check
         shell: bash
         run: |
-          sh scripts/check_release.sh $TARGET
+          bash scripts/check_release.sh $TARGET
 
       - name: Run Format Check
         run: pdm run format
