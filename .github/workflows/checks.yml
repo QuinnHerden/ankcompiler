@@ -17,7 +17,7 @@ on:
       - releases/**
       - main
 env:
-  TARGET: ${{ github.ref_name || github.head_ref }}
+  TARGET: ${{ github.head_ref }}
 
 jobs:
   checks:
