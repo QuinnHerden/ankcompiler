@@ -6,7 +6,6 @@ on:
     branches:
       - feature/**
       - features/**
-      - dev
   pull_request:
     types:
       - opened
