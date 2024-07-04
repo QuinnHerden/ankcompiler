@@ -46,5 +46,5 @@ if [[
 fi
 
 # If all checks pass
-echo "All versions are correctly formatted and equivalent"
+echo "All versions are correctly formatted and equivalent."
 exit 0
