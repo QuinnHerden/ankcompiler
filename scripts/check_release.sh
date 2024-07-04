@@ -6,6 +6,7 @@ release_pattern="^release[s]?/v.+"
 
 # Determining if this is a release
 target_name=$1
+echo $target_name
 
 if [[ $target_name =~ $release_pattern ]]; then
     is_release=true
