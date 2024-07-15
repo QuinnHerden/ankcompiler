@@ -112,7 +112,9 @@ def convert_md_to_html(md_fields: List[str]) -> List[str]:
     """
     html_fields = []
     for field in md_fields:
-        md_field = markdown(field, extensions=["markdown.extensions.fenced_code"])
+        md_field = markdown(
+            field, extensions=["markdown.extensions.fenced_code", "tables"]
+        )
         html_fields.append(md_field)
 
     return html_fields
