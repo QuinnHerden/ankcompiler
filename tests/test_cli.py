@@ -42,10 +42,9 @@ class TestGen:
 
     @staticmethod
     def test_gen_chunk_output_shape():
-        # {1,10} reflects the current (buggy) uid length contract; see #30.
         result = runner.invoke(app, ["gen", "chunk"])
         assert result.exit_code == 0
-        assert re.search(r"---\n---\n\[\^uid\]: [A-Za-z0-9]{1,10}", result.stdout)
+        assert re.search(r"---\n---\n\[\^uid\]: [A-Za-z0-9]{10}\n?$", result.stdout)
 
 
 class TestList:
