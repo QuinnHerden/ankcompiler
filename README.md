@@ -12,7 +12,7 @@ Key commands:
 - `ankc check` — validate decks without compiling; reports problems with `file:line` (`--format json` available).
 - `ankc uid` — insert a `[^uid]` footnote into any card block missing one (idempotent; `--check` for a dry run). Refuses to rewrite files with uncommitted git changes unless `--force`.
 ### Examples
-An example source deck can be found in the [test deck](https://github.com/QuinnHerden/ankcompiler/blob/main/tests/decks/sample.md)
+See [`examples/example.md`](examples/example.md) for a deck exercising every note type, tags, and math.
 ### Note types
 - **Question/Answer** — `front ::: back` (detected automatically).
 - **Cloze** — `{{c1:: ...}}` (detected automatically).
