@@ -12,8 +12,13 @@ jobs:
     if: github.event.pull_request.merged
 
     runs-on: ubuntu-latest
+
+    # OIDC token for PyPI Trusted Publishing (no stored credentials).
+    permissions:
+      id-token: write
+
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Setup uv
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
@@ -26,10 +31,9 @@ jobs:
           rm -rf dist
           uv build
 
+      # No credentials: uv detects the GitHub OIDC token and uses PyPI
+      # Trusted Publishing. Requires a trusted publisher configured on PyPI
+      # for this repo and workflow (owner QuinnHerden, repo ankcompiler,
+      # workflow deployment.yml).
       - name: Publish
         run: uv publish
-        env:
-          # Secret names are legacy (pre-uv); the values are the PyPI
-          # token credentials. See #51 to move to Trusted Publishing.
-          UV_PUBLISH_USERNAME: ${{ secrets.PDM_PUBLISH_USERNAME }}
-          UV_PUBLISH_PASSWORD: ${{ secrets.PDM_PUBLISH_PASSWORD }}
