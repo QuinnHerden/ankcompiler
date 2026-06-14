@@ -8,6 +8,13 @@ Run `pip install ankcompiler`
 Run `ankc --help` for usage information.
 ### Examples
 An example source deck can be found in the [test deck](https://github.com/QuinnHerden/ankcompiler/blob/main/tests/decks/sample.md)
+### Note types
+- **Question/Answer** — `front ::: back` (detected automatically).
+- **Cloze** — `{{c1:: ...}}` (detected automatically).
+- **Basic-and-reversed** — `front ::: back` with `[^type]: reversed`; generates both directions.
+- **Type-in-answer** — `question ::: answer` with `[^type]: type-in`.
+
+Reversed and type-in cards share the `:::` syntax, so declare them explicitly with a `[^type]` footnote alongside `[^uid]`.
 ### Math
 Inline (`$...$`) and block (`$$...$$`) LaTeX is rendered by Anki's MathJax. Use `\$` for a literal dollar sign.
 ## Credits

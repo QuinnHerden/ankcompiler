@@ -14,6 +14,49 @@ def build_note(tmp_path, body, frontmatter="deck: foo", meta="[^uid]: abc1234567
     return chunks[0].extract_note()
 
 
+class TestDeclaredNoteType:
+    def test_reversed_uses_two_templates(self, tmp_path):
+        note = build_note(
+            tmp_path,
+            "front ::: back",
+            meta="[^uid]: abc1234567\n[^type]: reversed",
+        )
+        assert note.model.name == "AnkCompiler-Basic-Reversed"
+        assert len(note.model.templates) == 2
+        assert note.fields[:2] == note.fields[:2]  # front/back rendered
+        assert "front" in note.fields[0]
+        assert "back" in note.fields[1]
+
+    def test_type_in_uses_type_template(self, tmp_path):
+        note = build_note(
+            tmp_path,
+            "capital of France ::: Paris",
+            meta="[^uid]: abc1234567\n[^type]: type-in",
+        )
+        assert note.model.name == "AnkCompiler-Type-In"
+        assert "{{type:Answer}}" in note.model.templates[0]["qfmt"]
+
+    def test_explicit_qa_type(self, tmp_path):
+        note = build_note(tmp_path, "q ::: a", meta="[^uid]: abc1234567\n[^type]: qa")
+        assert note.model.name == "AnkCompiler-Question_Answer"
+
+    def test_unknown_type_raises(self, tmp_path):
+        with pytest.raises(ValueError, match="Unknown note type 'bogus'"):
+            build_note(tmp_path, "q ::: a", meta="[^uid]: abc1234567\n[^type]: bogus")
+
+    def test_declared_type_body_mismatch_names_type(self, tmp_path):
+        # [^type]: cloze but a ::: body -> error should name the note type.
+        with pytest.raises(ValueError, match="Cloze"):
+            build_note(
+                tmp_path, "front ::: back", meta="[^uid]: abc1234567\n[^type]: cloze"
+            )
+
+    def test_reversed_not_auto_detected_without_declaration(self, tmp_path):
+        # A plain ::: card with no [^type] is QA, never ambiguous with reversed.
+        note = build_note(tmp_path, "q ::: a")
+        assert note.model.name == "AnkCompiler-Question_Answer"
+
+
 class TestExtractType:
     @staticmethod
     def test_no_matching_type_raises():
