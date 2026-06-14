@@ -47,6 +47,34 @@ class TestConvertMdToHtml:
         assert "<p>a</p>" in out[0]
         assert "<p>b</p>" in out[1]
 
+    @staticmethod
+    def test_inline_math():
+        (out,) = convert_md_to_html([r"$E = mc^2$"])
+        assert r"\(E = mc^2\)" in out  # Anki-native MathJax delimiters
+
+    @staticmethod
+    def test_block_math():
+        (out,) = convert_md_to_html([r"$$A = \pi r^2$$"])
+        assert r"\[A = \pi r^2\]" in out
+
+    @staticmethod
+    def test_currency_not_treated_as_math():
+        (out,) = convert_md_to_html([r"it costs $5 and $10"])
+        assert "$5 and $10" in out
+        assert "arithmatex" not in out
+
+    @staticmethod
+    def test_inequality_escaped_inside_math():
+        # '<' is HTML-escaped even inside math; Anki's MathJax decodes it.
+        (out,) = convert_md_to_html([r"$x < y$"])
+        assert r"\(x &lt; y\)" in out
+
+    @staticmethod
+    def test_math_inside_table():
+        out = convert_md_to_html(["| f | val |\n|---|---|\n| $x^2$ | y |"])[0]
+        assert "<table>" in out
+        assert r"\(x^2\)" in out
+
 
 class TestSearchFiles:
     @staticmethod

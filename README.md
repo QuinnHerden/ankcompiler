@@ -8,5 +8,7 @@ Run `pip install ankcompiler`
 Run `ankc --help` for usage information.
 ### Examples
 An example source deck can be found in the [test deck](https://github.com/QuinnHerden/ankcompiler/blob/main/tests/decks/sample.md)
+### Math
+Inline (`$...$`) and block (`$$...$$`) LaTeX is rendered by Anki's MathJax. Use `\$` for a literal dollar sign.
 ## Credits
 Inspiration taken from [lukesmurry](https://github.com/lukesmurray/markdown-anki-decks)
