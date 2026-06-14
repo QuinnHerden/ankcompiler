@@ -34,28 +34,29 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      # Pure-bash version check, kept before uv setup so it fails fast.
       - name: Run Release Check
         shell: bash
         run: |
           bash scripts/check_release.sh
 
-      - name: Setup PDM
-        uses: pdm-project/setup-pdm@v4.5
+      - name: Setup uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           python-version: ${{ matrix.python-version }}
-          cache: true
+          enable-cache: true
 
       - name: Install dependencies
-        run: pdm install
+        run: uv sync --frozen
 
       - name: Run Format Check
-        run: pdm run format
-      
+        run: make format
+
       - name: Run Security Check
-        run: pdm run secure
+        run: make secure
 
       - name: Run Test Suite with Coverage
-        run: pdm run coverage
+        run: make coverage
 
       # Badge publishing only runs on pushes to dev/main (not PRs, where the
       # gist secret is unavailable to untrusted code) and on a single Python
@@ -64,7 +65,7 @@ jobs:
         id: cov
         if: github.event_name == 'push' && (github.ref_name == 'dev' || github.ref_name == 'main') && matrix.python-version == '3.12'
         run: |
-          pct=$(python -c "import json; print(round(json.load(open('coverage.json'))['totals']['percent_covered'], 1))")
+          pct=$(uv run python -c "import json; print(round(json.load(open('coverage.json'))['totals']['percent_covered'], 1))")
           echo "pct=$pct" >> "$GITHUB_OUTPUT"
           # Per-branch badge files so dev and main don't overwrite each other.
           if [ "${GITHUB_REF_NAME}" = "main" ]; then

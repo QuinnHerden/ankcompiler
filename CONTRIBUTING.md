@@ -2,10 +2,10 @@
 
 ## Development setup
 
-This project uses [PDM](https://pdm-project.org/).
+This project uses [uv](https://docs.astral.sh/uv/).
 
 ```sh
-pdm install        # install runtime + dev dependencies
+uv sync            # install runtime + dev dependencies into .venv
 ```
 
 ## Checks
@@ -13,17 +13,19 @@ pdm install        # install runtime + dev dependencies
 CI runs the same checks on every pull request. Run them before you push:
 
 ```sh
-pdm run check      # release-version check, format, security, tests
+make check         # release-version check, format, security, tests
 ```
 
 You can also run each step on its own:
 
 | Command | What it does |
 |---|---|
-| `pdm run format` | `black --check .` |
-| `pdm run secure` | `bandit -r app -ll` |
-| `pdm run test` | `pytest` |
-| `pdm run coverage` | tests with a coverage report |
+| `make format` | `uv run black --check .` |
+| `make secure` | `uv run bandit -r app -ll` |
+| `make test` | `uv run pytest` |
+| `make coverage` | tests with a coverage report |
+
+Run any tool directly with `uv run <tool>` if you prefer.
 
 ## Branching
 
