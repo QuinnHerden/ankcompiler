@@ -51,7 +51,13 @@ def read_file(file: Path) -> str:
 
 
 def parse_markdown_file(file_path: Path) -> Tuple[dict, str]:
-    """Parse a markdown file into metadata and body."""
+    """Parse a markdown file into metadata and body.
+
+    The returned body is guaranteed to be newline-terminated when non-empty.
+    The chunk-extraction regexes depend on trailing newlines, so a document
+    ending on a card block with no trailing newline would otherwise drop its
+    last card (issue #25).
+    """
     try:
         split = frontmatter.parse(read_file(file_path))
     except ConstructorError:
@@ -60,6 +66,9 @@ def parse_markdown_file(file_path: Path) -> Tuple[dict, str]:
 
     meta = split[0]
     body = split[1]
+
+    if body and not body.endswith("\n"):
+        body += "\n"
 
     return meta, body
 

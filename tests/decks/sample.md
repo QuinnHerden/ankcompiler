@@ -67,5 +67,3 @@ multi-lines
 
 ---
 [^uid]: dzIiDWekpW
-
-.
