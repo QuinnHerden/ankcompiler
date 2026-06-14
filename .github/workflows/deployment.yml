@@ -13,6 +13,10 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    # Matches the GitHub environment named in the PyPI trusted publisher.
+    # Add protection rules (e.g. required reviewers) under repo settings.
+    environment: release
+
     # OIDC token for PyPI Trusted Publishing (no stored credentials).
     permissions:
       id-token: write
@@ -33,7 +37,7 @@ jobs:
 
       # No credentials: uv detects the GitHub OIDC token and uses PyPI
       # Trusted Publishing. Requires a trusted publisher configured on PyPI
-      # for this repo and workflow (owner QuinnHerden, repo ankcompiler,
-      # workflow deployment.yml).
+      # for this repo (owner QuinnHerden, repo ankcompiler, workflow
+      # deployment.yml, environment release).
       - name: Publish
         run: uv publish
