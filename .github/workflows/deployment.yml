@@ -6,10 +6,12 @@ on:
       - closed
     branches:
       - main
+  # Manual run that only verifies Trusted Publishing, without uploading.
+  workflow_dispatch:
 
 jobs:
   deployment:
-    if: github.event.pull_request.merged
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged
 
     runs-on: ubuntu-latest
 
@@ -30,7 +32,42 @@ jobs:
           python-version: 3.12
           enable-cache: true
 
+      # Verify-only: mint a PyPI token via OIDC and discard it. Confirms the
+      # trusted publisher config (owner/repo/workflow/environment) is correct
+      # without uploading anything. Runs on manual dispatch only.
+      - name: Verify Trusted Publishing
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.error, urllib.request
+
+          try:
+              oidc_req = urllib.request.Request(
+                  os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"] + "&audience=pypi",
+                  headers={
+                      "Authorization": "Bearer "
+                      + os.environ["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]
+                  },
+              )
+              oidc = json.load(urllib.request.urlopen(oidc_req, timeout=30))["value"]
+
+              # Minted token is intentionally discarded (never used to upload).
+              mint_req = urllib.request.Request(
+                  "https://pypi.org/_/oidc/mint-token",
+                  data=json.dumps({"token": oidc}).encode(),
+                  headers={"Content-Type": "application/json"},
+              )
+              urllib.request.urlopen(mint_req, timeout=30)
+          except urllib.error.HTTPError as exc:
+              print("Trusted Publishing check FAILED:")
+              print(exc.read().decode())
+              raise SystemExit(1)
+
+          print("Trusted Publishing OK: PyPI minted a token for this workflow.")
+          PY
+
       - name: Build
+        if: github.event_name == 'pull_request'
         run: |
           rm -rf dist
           uv build
@@ -40,4 +77,5 @@ jobs:
       # for this repo (owner QuinnHerden, repo ankcompiler, workflow
       # deployment.yml, environment release).
       - name: Publish
+        if: github.event_name == 'pull_request'
         run: uv publish
