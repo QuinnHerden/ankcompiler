@@ -134,7 +134,11 @@ def convert_md_to_html(md_fields: List[str]) -> List[str]:
     html_fields = []
     for field in md_fields:
         md_field = markdown(
-            field, extensions=["markdown.extensions.fenced_code", "tables"]
+            field,
+            extensions=["fenced_code", "tables", "pymdownx.arithmatex"],
+            # generic mode emits \(...\) / \[...\] (data only, no inline
+            # script), which Anki's built-in MathJax renders.
+            extension_configs={"pymdownx.arithmatex": {"generic": True}},
         )
         html_fields.append(md_field)
 
