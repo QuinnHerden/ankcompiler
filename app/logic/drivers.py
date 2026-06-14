@@ -8,6 +8,7 @@ from app.logic.utils import (
     parse_markdown_file,
     search_markdown_files,
 )
+from app.logic.validation import Finding, validate_files
 
 
 def compile_deck(
@@ -77,6 +78,25 @@ def list_source_files(
     paths = deck.get_source_file_paths()
 
     return paths
+
+
+def validate_deck_files(
+    deck_names: List[str],
+    source_search_path: Path,
+    source_search_depth: Optional[int],
+) -> List[Finding]:
+    """Validates all source files belonging to the given decks."""
+    file_paths: List[Path] = []
+    for deck_name in deck_names:
+        file_paths.extend(
+            list_source_files(
+                deck_name=deck_name,
+                source_search_path=source_search_path,
+                source_search_depth=source_search_depth,
+            )
+        )
+
+    return validate_files(file_paths)
 
 
 def generate_chunk() -> str:

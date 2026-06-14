@@ -3,12 +3,14 @@ from typing import Optional
 import typer
 
 from app.cli.build import build_app
+from app.cli.check import check_app
 from app.cli.gen import gen_app
 from app.cli.list import list_app
 from app.config import settings
 
 app = typer.Typer()
 app.add_typer(build_app, name="build")
+app.add_typer(check_app, name="check")
 app.add_typer(list_app, name="list")
 app.add_typer(gen_app, name="gen")
 

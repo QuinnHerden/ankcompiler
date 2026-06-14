@@ -17,6 +17,16 @@ from app.logic.utils import (
     search_markdown_files,
 )
 
+# Shared note-block grammar — single source of truth for the chunk parser
+# (File.extract_chunks) and the validator (app.logic.validation). Footnotes
+# (uid/tag/type) may follow a block in any order.
+GUID_FOOTNOTE = rf"(?:\[\^{settings.GUID_KEY}\]: *[A-Za-z0-9]{{10}}\n+)"
+TAG_FOOTNOTE = rf"(?:\[\^{settings.TAG_KEY}\]: *.+?\n+)"
+TYPE_FOOTNOTE = rf"(?:\[\^{settings.TYPE_KEY}\]: *.+?\n+)"
+# Block body between the "---" delimiters. A single character class (rather
+# than an ambiguous (.|\n) alternation) to avoid catastrophic backtracking.
+NOTE_BODY = r"[\s\S]+?"
+
 
 @dataclass
 class Deck:
@@ -134,17 +144,8 @@ class File:
     def extract_chunks(self) -> List["Chunk"]:
         """Splits markdown file into list of its note chunks."""
 
-        uid_exp = (
-            rf"(?:\[\^{settings.GUID_KEY}\]:"
-            + r" *[A-Za-z0-9]{10}\n+)"  # [^uid]: abc1234XYZ
-        )
-        tag_exp = rf"(?:\[\^{settings.TAG_KEY}\]: *.+?\n+)"  # [^tag]: tag_name
-        type_exp = rf"(?:\[\^{settings.TYPE_KEY}\]: *.+?\n+)"  # [^type]: reversed
-
-        # Footnotes (uid/tag/type) may appear in any order after the block.
-        meta_exp = rf"((?:{uid_exp}|{tag_exp}|{type_exp})*)"
-
-        note_exp = r"(?:---\n\s*\n+(.(?:.|\n)+?.)\n\s*\n---\n+)"  # triple "-" delimited w/ internal newline padding
+        meta_exp = rf"((?:{GUID_FOOTNOTE}|{TAG_FOOTNOTE}|{TYPE_FOOTNOTE})*)"
+        note_exp = rf"(?:---\n\s*\n+({NOTE_BODY})\n\s*\n---\n+)"  # triple "-" delimited
         combined_exp = rf"({note_exp}{meta_exp}?)"
 
         card_matches = re.findall(combined_exp, self.body)
