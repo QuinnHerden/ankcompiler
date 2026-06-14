@@ -16,6 +16,6 @@ coverage:
 	uv run pytest --cov=app --cov-report=term-missing --cov-report=json
 
 release:
-	sh scripts/check_release.sh
+	bash scripts/check_release.sh
 
 check: release format secure test

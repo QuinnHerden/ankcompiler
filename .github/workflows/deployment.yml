@@ -29,5 +29,7 @@ jobs:
       - name: Publish
         run: uv publish
         env:
+          # Secret names are legacy (pre-uv); the values are the PyPI
+          # token credentials. See #51 to move to Trusted Publishing.
           UV_PUBLISH_USERNAME: ${{ secrets.PDM_PUBLISH_USERNAME }}
           UV_PUBLISH_PASSWORD: ${{ secrets.PDM_PUBLISH_PASSWORD }}
