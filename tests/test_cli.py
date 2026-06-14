@@ -40,6 +40,13 @@ class TestGen:
         )
         assert result.exit_code == 0
 
+    @staticmethod
+    def test_gen_chunk_output_shape():
+        # {1,10} reflects the current (buggy) uid length contract; see #30.
+        result = runner.invoke(app, ["gen", "chunk"])
+        assert result.exit_code == 0
+        assert re.search(r"---\n---\n\[\^uid\]: [A-Za-z0-9]{1,10}", result.stdout)
+
 
 class TestList:
     @staticmethod
@@ -117,3 +124,16 @@ class TestBuild:
             ],
         )
         assert result.exit_code == 0
+
+    @staticmethod
+    def test_build_invalid_selection():
+        result = runner.invoke(  # no --deck and no --all
+            app,
+            [
+                "build",
+                "--depth",
+                "2",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "Not a valid source selection." in result.stdout
