@@ -12,7 +12,12 @@ from app.logic.sources import (
     Chunk,
     File,
 )
-from app.logic.utils import parse_markdown_file, read_file
+from app.logic.utils import (
+    frontmatter_end_offset,
+    line_at,
+    parse_markdown_file,
+    read_file,
+)
 
 # Same block grammar as File.extract_chunks (shared sub-patterns), but with
 # named groups and finditer so we can report line numbers.
@@ -34,20 +39,6 @@ class Finding:
     def format(self) -> str:
         loc = f"{self.file}:{self.line}" if self.line else str(self.file)
         return f"{loc}: {self.level}: {self.message}"
-
-
-def _frontmatter_end(raw: str) -> int:
-    """Offset in ``raw`` where the post-frontmatter body begins (0 if none)."""
-    if raw.startswith("---"):
-        match = re.match(r"---\n.*?\n---\n", raw, re.DOTALL)
-        if match:
-            return match.end()
-    return 0
-
-
-def _line_at(raw: str, offset: int) -> int:
-    """1-based line number of ``offset`` within ``raw``."""
-    return raw.count("\n", 0, offset) + 1
 
 
 def validate_files(file_paths: List[Path]) -> List[Finding]:
@@ -72,7 +63,7 @@ def _validate_file(path: Path, seen_uids: Dict[str, Tuple[Path, int]]) -> List[F
             Finding(path, 1, "error", "frontmatter is missing a 'deck' key")
         )
 
-    body_start = _frontmatter_end(raw)
+    body_start = frontmatter_end_offset(raw)
     body = raw[body_start:]
     # Match parse_markdown_file's trailing-newline normalization (#25) so a
     # document ending on a card block isn't seen as missing its footnotes.
@@ -83,7 +74,7 @@ def _validate_file(path: Path, seen_uids: Dict[str, Tuple[Path, int]]) -> List[F
     matched_spans: List[Tuple[int, int]] = []
     for match in _BLOCK_RE.finditer(body):
         matched_spans.append((match.start(), match.end()))
-        line = _line_at(raw, body_start + match.start())
+        line = line_at(raw, body_start + match.start())
         chunk = Chunk(body=match.group("body"), meta=match.group("meta"), file=file_obj)
         findings.extend(_validate_chunk(chunk, path, line, seen_uids))
 
@@ -140,7 +131,7 @@ def _check_unparsed_openers(
     for opener in _OPENER_RE.finditer(body):
         inside = any(start <= opener.start() < end for start, end in matched_spans)
         if not inside:
-            line = _line_at(raw, body_start + opener.start())
+            line = line_at(raw, body_start + opener.start())
             # Heuristic (a stray "---" in prose can trip it), so warn rather
             # than error — this must not block an otherwise valid build.
             findings.append(

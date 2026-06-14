@@ -6,6 +6,11 @@ A CLI tool for compiling Anki decks, defined in Markdown.
 Run `pip install ankcompiler`
 ## Usage
 Run `ankc --help` for usage information.
+
+Key commands:
+- `ankc build` — compile decks into `.apkg` packages.
+- `ankc check` — validate decks without compiling; reports problems with `file:line` (`--format json` available).
+- `ankc uid` — insert a `[^uid]` footnote into any card block missing one (idempotent; `--check` for a dry run). Refuses to rewrite files with uncommitted git changes unless `--force`.
 ### Examples
 An example source deck can be found in the [test deck](https://github.com/QuinnHerden/ankcompiler/blob/main/tests/decks/sample.md)
 ### Note types

@@ -8,6 +8,7 @@ from app.logic.utils import (
     parse_markdown_file,
     search_markdown_files,
 )
+from app.logic.stamping import StampResult, file_is_dirty, stamp_file
 from app.logic.validation import Finding, validate_files
 
 
@@ -97,6 +98,32 @@ def validate_deck_files(
         )
 
     return validate_files(file_paths)
+
+
+def stamp_source_files(
+    source_search_path: Path,
+    source_search_depth: Optional[int],
+    dry_run: bool,
+) -> List[StampResult]:
+    """Stamps missing uids across all markdown files under the search path."""
+    files = search_markdown_files(
+        search_path=source_search_path, search_depth=source_search_depth
+    )
+    return [
+        stamp_file(path=path, search_root=source_search_path, dry_run=dry_run)
+        for path in files
+    ]
+
+
+def dirty_source_files(
+    source_search_path: Path,
+    source_search_depth: Optional[int],
+) -> List[Path]:
+    """Returns markdown source files with uncommitted git changes."""
+    files = search_markdown_files(
+        search_path=source_search_path, search_depth=source_search_depth
+    )
+    return [path for path in files if file_is_dirty(path)]
 
 
 def generate_chunk() -> str:
