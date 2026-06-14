@@ -6,29 +6,76 @@ on:
       - closed
     branches:
       - main
+  # Manual run that only verifies Trusted Publishing, without uploading.
+  workflow_dispatch:
 
 jobs:
   deployment:
-    if: github.event.pull_request.merged
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged
 
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Setup PDM
-        uses: pdm-project/setup-pdm@v4
+    # Matches the GitHub environment named in the PyPI trusted publisher.
+    # Add protection rules (e.g. required reviewers) under repo settings.
+    environment: release
+
+    # OIDC token for PyPI Trusted Publishing (no stored credentials).
+    permissions:
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           python-version: 3.12
-          cache: true
+          enable-cache: true
 
-      - name: Install dependencies
-        run: pdm install
+      # Verify-only: mint a PyPI token via OIDC and discard it. Confirms the
+      # trusted publisher config (owner/repo/workflow/environment) is correct
+      # without uploading anything. Runs on manual dispatch only.
+      - name: Verify Trusted Publishing
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.error, urllib.request
 
-      - name: Run Build
-        run: pdm build
-      
-      - name: Run Publish
-        run: pdm publish
-        env:
-          PDM_PUBLISH_USERNAME: ${{ secrets.PDM_PUBLISH_USERNAME }}
-          PDM_PUBLISH_PASSWORD: ${{ secrets.PDM_PUBLISH_PASSWORD }}
+          try:
+              oidc_req = urllib.request.Request(
+                  os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"] + "&audience=pypi",
+                  headers={
+                      "Authorization": "Bearer "
+                      + os.environ["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]
+                  },
+              )
+              oidc = json.load(urllib.request.urlopen(oidc_req, timeout=30))["value"]
+
+              # Minted token is intentionally discarded (never used to upload).
+              mint_req = urllib.request.Request(
+                  "https://pypi.org/_/oidc/mint-token",
+                  data=json.dumps({"token": oidc}).encode(),
+                  headers={"Content-Type": "application/json"},
+              )
+              urllib.request.urlopen(mint_req, timeout=30)
+          except urllib.error.HTTPError as exc:
+              print("Trusted Publishing check FAILED:")
+              print(exc.read().decode())
+              raise SystemExit(1)
+
+          print("Trusted Publishing OK: PyPI minted a token for this workflow.")
+          PY
+
+      - name: Build
+        if: github.event_name == 'pull_request'
+        run: |
+          rm -rf dist
+          uv build
+
+      # No credentials: uv detects the GitHub OIDC token and uses PyPI
+      # Trusted Publishing. Requires a trusted publisher configured on PyPI
+      # for this repo (owner QuinnHerden, repo ankcompiler, workflow
+      # deployment.yml, environment release).
+      - name: Publish
+        if: github.event_name == 'pull_request'
+        run: uv publish

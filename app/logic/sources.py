@@ -17,12 +17,22 @@ from app.logic.utils import (
     search_markdown_files,
 )
 
+# Shared note-block grammar — single source of truth for the chunk parser
+# (File.extract_chunks) and the validator (app.logic.validation). Footnotes
+# (uid/tag/type) may follow a block in any order.
+GUID_FOOTNOTE = rf"(?:\[\^{settings.GUID_KEY}\]: *[A-Za-z0-9]{{10}}\n+)"
+TAG_FOOTNOTE = rf"(?:\[\^{settings.TAG_KEY}\]: *.+?\n+)"
+TYPE_FOOTNOTE = rf"(?:\[\^{settings.TYPE_KEY}\]: *.+?\n+)"
+# Block body between the "---" delimiters. A single character class (rather
+# than an ambiguous (.|\n) alternation) to avoid catastrophic backtracking.
+NOTE_BODY = r"[\s\S]+?"
+
 
 @dataclass
 class Deck:
     name: str
     source_search_path: Path
-    source_search_depth: int
+    source_search_depth: Optional[int]
 
     def compile(self, output_path: Path) -> None:
         """Packages a deck."""
@@ -31,10 +41,11 @@ class Deck:
         package = GenAnkiPackage(deck)
 
         chunks = self._get_chunks()
+        images = []
         for chunk in chunks:
             note = chunk.extract_note()
 
-            package.media_files.extend(note.images)
+            images.extend(note.images)
 
             deck.add_note(
                 GenAnkiNote(
@@ -42,9 +53,40 @@ class Deck:
                 )
             )
 
+        package.media_files = self._dedupe_media(images)
+
         file_name = clean_str_for_filename(self.name)
         write_path = Path(f"{output_path}/{file_name}.apkg")
         package.write_to_file(write_path)
+
+    @staticmethod
+    def _dedupe_media(images: List[Path]) -> List[Path]:
+        """De-duplicate media paths, erroring on basename collisions.
+
+        Anki keys media by basename, so two distinct files sharing a name
+        (e.g. ``a/diagram.png`` and ``b/diagram.png``) would silently clobber
+        each other in the package. De-duplicate identical files (same resolved
+        path) and raise on a genuine basename collision.
+        """
+        by_basename: dict = {}  # basename -> resolved path
+        deduped: List[Path] = []
+
+        for image in images:
+            resolved = image.resolve()
+            existing = by_basename.get(image.name)
+
+            if existing is not None:
+                if existing == resolved:
+                    continue  # same file referenced again
+                raise ValueError(
+                    f"Media basename collision: '{image.name}' refers to both "
+                    f"{existing} and {resolved}"
+                )
+
+            by_basename[image.name] = resolved
+            deduped.append(image)
+
+        return deduped
 
     def _get_chunks(self) -> List["Chunk"]:
         """Returns list of all chunks within scope."""
@@ -102,15 +144,8 @@ class File:
     def extract_chunks(self) -> List["Chunk"]:
         """Splits markdown file into list of its note chunks."""
 
-        uid_exp = (
-            rf"(?:\[\^{settings.GUID_KEY}\]:"
-            + r" *[A-Za-z0-9]{10}\n+)"  # [^uid]: abc1234XYZ
-        )
-        tag_exp = rf"(?:\[\^{settings.TAG_KEY}\]: *.+?\n+)"  # [^tag]: tag_name
-
-        meta_exp = rf"({tag_exp}*{uid_exp}?{tag_exp}*)"
-
-        note_exp = r"(?:---\n\s*\n+(.(?:.|\n)+?.)\n\s*\n---\n+)"  # triple "-" delimited w/ internal newline padding
+        meta_exp = rf"((?:{GUID_FOOTNOTE}|{TAG_FOOTNOTE}|{TYPE_FOOTNOTE})*)"
+        note_exp = rf"(?:---\n\s*\n+({NOTE_BODY})\n\s*\n---\n+)"  # triple "-" delimited
         combined_exp = rf"({note_exp}{meta_exp}?)"
 
         card_matches = re.findall(combined_exp, self.body)
@@ -159,19 +194,20 @@ class Chunk:
         if guid is None:
             raise ValueError("No guid found in note meta chunk")
 
-        model = self._extract_type().model
-        fields = self._extract_fields()
+        note_type = self._resolve_type(meta_dict)
+        html_fields = self._extract_html_fields(note_type)
+        fields = [*html_fields, self.file.get_name()]
 
         meta_tags = self.file.get_tags()
 
         tags.extend(meta_tags)
         tags = list(dict.fromkeys(tags))
 
-        images = self._extract_images()
+        images = self._extract_images(html_fields)
 
         note = Note(
             guid=guid,
-            model=model,
+            model=note_type.model,
             fields=fields,
             tags=tags,
             source=self.file,
@@ -180,15 +216,46 @@ class Chunk:
 
         return note
 
+    @property
+    def uid(self) -> Optional[str]:
+        """The note's declared uid, or None if it has none."""
+        return self._extract_meta().get(settings.GUID_KEY)
+
+    def validate(self) -> List[str]:
+        """Returns chunk-level validation errors, empty when the chunk is
+        valid. Covers a missing uid and an unresolvable or mismatched note
+        type. Deck-level checks (duplicate uid, frontmatter) live in the
+        caller."""
+        errors: List[str] = []
+        meta_dict = self._extract_meta()
+
+        if meta_dict.get(settings.GUID_KEY) is None:
+            snippet = self.body.strip().splitlines()[0][:50]
+            errors.append(f'card block missing uid: "{snippet}"')
+
+        try:
+            note_type = self._resolve_type(meta_dict)
+            self._extract_md_fields(note_type)
+        except ValueError as exc:
+            errors.append(str(exc))
+
+        return errors
+
     def _extract_meta(self) -> dict:
         """
         Extracts footer metadata from note chunk.
         """
-        meta_dict = {settings.GUID_KEY: None, settings.TAG_KEY: []}
+        meta_dict = {
+            settings.GUID_KEY: None,
+            settings.TAG_KEY: [],
+            settings.TYPE_KEY: None,
+        }
 
+        # Value pattern is [\w-]+ (word chars + hyphen, e.g. "type-in"); keep
+        # in sync with the footnote value patterns in File.extract_chunks.
         matches = re.findall(
-            r"(\[\^(\w+)\]: *(\w+))", self.meta
-        )  # [^example_key]: example_value
+            r"(\[\^(\w+)\]: *([\w-]+))", self.meta
+        )  # [^example_key]: example-value
 
         pairs = []
         for match in matches:
@@ -209,12 +276,30 @@ class Chunk:
 
         return meta_dict
 
-    def _extract_type(self) -> "NoteType":
-        """Classifies note chunk into a note type."""
+    def _resolve_type(self, meta_dict: dict) -> "NoteType":
+        """Resolves the note type from already-parsed metadata.
+
+        If a ``[^type]`` footnote is declared it selects the type by key;
+        otherwise the type is auto-detected by matching the body against the
+        auto-detectable types (QA, Cloze). Types that share the ``:::`` field
+        syntax (reversed, type-in) must be declared explicitly to avoid
+        ambiguous auto-detection.
+        """
         types = NoteType.get_types()
+
+        declared = meta_dict.get(settings.TYPE_KEY)
+        if declared is not None:
+            declared = declared.strip().lower()
+            for type_ in types:
+                if type_.key == declared:
+                    return type_
+            valid = ", ".join(t.key for t in types)
+            raise ValueError(f"Unknown note type '{declared}'. Valid types: {valid}")
 
         matches = []
         for type_ in types:
+            if not type_.auto_detect:
+                continue
             match = re.compile(type_.regex, re.DOTALL).findall(self.body)
             if len(match) > 0:
                 matches.append(type_)
@@ -227,35 +312,22 @@ class Chunk:
 
         return matches[0]
 
-    def _extract_fields(self) -> List[str]:
-        """
-        Extracts presentation-ready fields from note chunk.
-        """
-        fields = []
-
-        html_fields = self._extract_html_fields()
-        fields.extend(html_fields)
-
-        source_file_name = self.file.get_name()
-        fields.append(source_file_name)
-
-        return fields
-
-    def _extract_html_fields(self) -> List[str]:
+    def _extract_html_fields(self, note_type: "NoteType") -> List[str]:
         """Extracts HTML fields from note chunk."""
-        md_fields = self._extract_md_fields()
+        md_fields = self._extract_md_fields(note_type)
         html_fields = convert_md_to_html(md_fields)
 
         return html_fields
 
-    def _extract_md_fields(self) -> List[str]:
+    def _extract_md_fields(self, note_type: "NoteType") -> List[str]:
         """Extracts markdown fields from note chunk."""
-        note_type = self._extract_type()
-
         matches = re.compile(note_type.regex, re.DOTALL).findall(self.body)
 
         if len(matches) != 1:
-            raise ValueError("Could not extract content from chunk")
+            raise ValueError(
+                f"Could not extract {note_type.name} fields from chunk; "
+                f"body does not match the expected syntax"
+            )
 
         if isinstance(matches[0], tuple):  # need to unpack (['…', '…'])
             md_fields = list(matches[0])
@@ -265,16 +337,15 @@ class Chunk:
 
         return md_fields
 
-    def _extract_images(self) -> List[Path]:
-        """Extracts image paths from note chunk."""
-        html_fields = self._extract_html_fields()
-        regex = r'.*<img.*src="(.*)".*'
+    def _extract_images(self, html_fields: List[str]) -> List[Path]:
+        """Extracts image paths from already-rendered HTML fields."""
+        # Relies on convert_md_to_html emitting double-quoted, single-line
+        # <img> tags; revisit this pattern if the renderer changes.
+        regex = r'<img[^>]*src="([^"]*)"'
 
         relative_image_paths = []
         for field in html_fields:
-            match = re.compile(regex, re.DOTALL).findall(field)
-            if len(match) >= 1:
-                relative_image_paths = list(match)
+            relative_image_paths.extend(re.findall(regex, field))
 
         full_image_paths = [
             Path(self.file.path).parent / x for x in relative_image_paths
@@ -295,16 +366,20 @@ class Note:
 @dataclass
 class NoteType:
     name: str
+    key: str  # value used in a [^type] footnote to select this type
     regex: str
     model: GenAnkiModel
+    auto_detect: bool = True  # whether the body can be matched without [^type]
 
     @staticmethod
     def get_types() -> List["NoteType"]:
         """Provides the master list of 'block' (note) types"""
+        qa_regex = r"(.+):::(.+)"
         return [
             NoteType(
                 name="QA",
-                regex=r"(.+):::(.+)",
+                key="qa",
+                regex=qa_regex,
                 model=GenAnkiModel(
                     model_id="1764365620",
                     name="AnkCompiler-Question_Answer",
@@ -326,6 +401,7 @@ class NoteType:
             ),
             NoteType(
                 name="Cloze",
+                key="cloze",
                 regex=r"(.*(?:\{{ *c\d+ *:: *[\s\S]+? *\}})+.*)",
                 model=GenAnkiModel(
                     model_id="1783507665",
@@ -340,6 +416,61 @@ class NoteType:
                     ],
                     css=f'@import url("{settings.MASTER_STYLESHEET}");',
                     model_type=GenAnkiModel.CLOZE,
+                ),
+            ),
+            # Shares the QA ::: field syntax; must be declared via [^type]
+            # because its body is indistinguishable from a QA card.
+            NoteType(
+                name="Basic-Reversed",
+                key="reversed",
+                regex=qa_regex,
+                auto_detect=False,
+                model=GenAnkiModel(
+                    model_id="1764365630",
+                    name="AnkCompiler-Basic-Reversed",
+                    fields=[
+                        {"name": "Front"},
+                        {"name": "Back"},
+                        {"name": "Source"},
+                    ],
+                    templates=[
+                        {
+                            "name": "Forward",
+                            "qfmt": "{{Front}}",
+                            "afmt": "{{Front}}<hr id=answer>{{Back}}",
+                        },
+                        {
+                            "name": "Reverse",
+                            "qfmt": "{{Back}}",
+                            "afmt": "{{Back}}<hr id=answer>{{Front}}",
+                        },
+                    ],
+                    css=f'@import url("{settings.MASTER_STYLESHEET}");',
+                    model_type=GenAnkiModel.FRONT_BACK,
+                ),
+            ),
+            NoteType(
+                name="Type-In",
+                key="type-in",
+                regex=qa_regex,
+                auto_detect=False,
+                model=GenAnkiModel(
+                    model_id="1764365640",
+                    name="AnkCompiler-Type-In",
+                    fields=[
+                        {"name": "Question"},
+                        {"name": "Answer"},
+                        {"name": "Source"},
+                    ],
+                    templates=[
+                        {
+                            "name": "Type-In",
+                            "qfmt": "{{Question}}<br>{{type:Answer}}",
+                            "afmt": "{{Question}}<hr id=answer>{{Answer}}",
+                        },
+                    ],
+                    css=f'@import url("{settings.MASTER_STYLESHEET}");',
+                    model_type=GenAnkiModel.FRONT_BACK,
                 ),
             ),
         ]

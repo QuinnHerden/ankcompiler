@@ -1,7 +1,7 @@
 [project]
 name = "ankcompiler"
 description = "A CLI tool for compiling Anki decks, defined in Markdown"
-version = "0.1.5"
+version = "0.2.0"
 authors = [
     {name = "Quinn Herden", email = "55929299+QuinnHerden@users.noreply.github.com"},
 ]
@@ -14,38 +14,30 @@ dependencies = [
     "dataclasses>=0.6",
     "python-frontmatter>=1.1.0",
     "markdown>=3.6",
+    "pymdown-extensions>=10.0",
 ]
 requires-python = ">=3.11"
 readme = "README.md"
 license = {text = "MIT"}
 
-[tool.pdm]
-distribution = true
+[project.scripts]
+ankc = "app.main:app"
 
-[tool.pdm.dev-dependencies]
+[dependency-groups]
 dev = [
     "black>=24.4.2",
     "flake8>=7.1.0",
     "pytest>=8.2.2",
+    "pytest-cov>=5.0.0",
     "bandit>=1.7.9",
 ]
 
-[tool.pdm.scripts]
-release = "sh scripts/check_release.sh"
-format = "pdm run black --check ."
-secure = "pdm run bandit -r app -ll"
-test = "pdm run pytest"
-
-check = {composite  = [
-    "release",
-    "format",
-    "secure",
-    "test",
-]}
-
-[project.scripts]
-ankc = "app.main:app"
-
 [build-system]
-requires = ["pdm-backend"]
-build-backend = "pdm.backend"
+requires = ["uv_build>=0.7,<0.9"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+# The importable package is app/ at the repo root (flat layout), not a
+# src/ankcompiler/ layout, so point the backend at it explicitly.
+module-name = "app"
+module-root = ""

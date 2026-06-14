@@ -1,32 +1,49 @@
-import base64
 import hashlib
 import logging
-import os
 import re
+import secrets
+import string
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import frontmatter
 from markdown import markdown
 from yaml.constructor import ConstructorError
 
 
-def search_files(extension: str, search_dir: Path, search_depth: int) -> List[Path]:
+def search_files(
+    extension: str, search_dir: Path, search_depth: Optional[int] = None
+) -> List[Path]:
     """
-    Looks for files with the given extension in
-    the given directory and its subdirectories
-    up to the specified search depth.
+    Looks for files with the given extension in the given directory and its
+    subdirectories. When ``search_depth`` is None all subdirectories are
+    searched; otherwise the search is limited to that many levels below the
+    root (depth 0 = root only).
+
+    Hidden directories (names starting with ".") and symlinked directories are
+    skipped, the latter to avoid symlink-cycle infinite recursion. Directories
+    that cannot be read are logged and skipped.
     """
 
     def search(current_dir: Path, current_depth: int) -> List[Path]:
-        if current_depth > search_depth:
+        if search_depth is not None and current_depth > search_depth:
+            return []
+
+        try:
+            items = list(current_dir.iterdir())
+        except OSError as exc:
+            logging.warning("Could not read directory %s: %s", current_dir, exc)
             return []
 
         result = []
-        for item in current_dir.iterdir():
+        for item in items:
             if item.is_file() and item.suffix == f"{extension}":
                 result.append(item)
-            elif item.is_dir():
+            elif (
+                item.is_dir()
+                and not item.is_symlink()
+                and not item.name.startswith(".")
+            ):
                 result.extend(search(item, current_depth + 1))
 
         return result
@@ -34,10 +51,11 @@ def search_files(extension: str, search_dir: Path, search_depth: int) -> List[Pa
     return search(search_dir, 0)
 
 
-def search_markdown_files(search_path: Path, search_depth: int) -> List[Path]:
-    """Get all markdown files in
-    the given directory and its subdirectories
-    up to the specified search depth.
+def search_markdown_files(
+    search_path: Path, search_depth: Optional[int] = None
+) -> List[Path]:
+    """Get all markdown files in the given directory and its subdirectories,
+    limited to ``search_depth`` levels when provided (None = unlimited).
     """
     return search_files(".md", search_path, search_depth)
 
@@ -51,7 +69,13 @@ def read_file(file: Path) -> str:
 
 
 def parse_markdown_file(file_path: Path) -> Tuple[dict, str]:
-    """Parse a markdown file into metadata and body."""
+    """Parse a markdown file into metadata and body.
+
+    The returned body is guaranteed to be newline-terminated when non-empty.
+    The chunk-extraction regexes depend on trailing newlines, so a document
+    ending on a card block with no trailing newline would otherwise drop its
+    last card (issue #25).
+    """
     try:
         split = frontmatter.parse(read_file(file_path))
     except ConstructorError:
@@ -61,7 +85,24 @@ def parse_markdown_file(file_path: Path) -> Tuple[dict, str]:
     meta = split[0]
     body = split[1]
 
+    if body and not body.endswith("\n"):
+        body += "\n"
+
     return meta, body
+
+
+def frontmatter_end_offset(raw: str) -> int:
+    """Offset in ``raw`` where the post-frontmatter body begins (0 if none)."""
+    if raw.startswith("---"):
+        match = re.match(r"---\n.*?\n---\n", raw, re.DOTALL)
+        if match:
+            return match.end()
+    return 0
+
+
+def line_at(raw: str, offset: int) -> int:
+    """1-based line number of ``offset`` within ``raw``."""
+    return raw.count("\n", 0, offset) + 1
 
 
 def generate_integer_hash(text: str) -> int:
@@ -80,15 +121,9 @@ def generate_integer_hash(text: str) -> int:
 
 
 def generate_random_string(length: int = 10) -> str:
-    """
-    Generate a random string of a specified length using base64 encoding and
-    restricting characters to A-Z, a-z, and 0-9.
-    """
-    random_bytes = os.urandom(length)
-    random_base64 = base64.b64encode(random_bytes).decode("utf-8")
-    random_string = "".join(filter(str.isalnum, random_base64))[:length]
-
-    return random_string
+    """Generate a random alphanumeric string (A-Z, a-z, 0-9) of the given length."""
+    alphabet = string.ascii_letters + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
 def get_url_regex_expression() -> str:
@@ -113,7 +148,11 @@ def convert_md_to_html(md_fields: List[str]) -> List[str]:
     html_fields = []
     for field in md_fields:
         md_field = markdown(
-            field, extensions=["markdown.extensions.fenced_code", "tables"]
+            field,
+            extensions=["fenced_code", "tables", "pymdownx.arithmatex"],
+            # generic mode emits \(...\) / \[...\] (data only, no inline
+            # script), which Anki's built-in MathJax renders.
+            extension_configs={"pymdownx.arithmatex": {"generic": True}},
         )
         html_fields.append(md_field)
 

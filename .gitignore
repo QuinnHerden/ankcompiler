@@ -51,11 +51,14 @@ cython_debug/
 # general
 __pycache__
 
-# pdm
-.pdm-python
-.pdm-build
+# uv / build
 dist
 
 # pytest
 .pytest_cache
 *.apkg
+
+# coverage
+.coverage
+coverage.json
+htmlcov/
