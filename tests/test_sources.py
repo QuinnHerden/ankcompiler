@@ -21,3 +21,28 @@ class TestEndOfDocument:
 
         assert len(chunks) == 1
         assert chunks[0].extract_note().guid == "abc1234567"
+
+
+class TestExtractImages:
+    @staticmethod
+    def _note_with_body(tmp_path, body):
+        deck = tmp_path / "deck.md"
+        deck.write_text(
+            f"---\ndeck: foo\n---\n---\n\n{body}\n\n---\n[^uid]: abc1234567\n"
+        )
+        meta, parsed = parse_markdown_file(deck)
+        chunks = File(path=deck, meta=meta, body=parsed).extract_chunks()
+        assert len(chunks) == 1
+        return chunks[0].extract_note()
+
+    def test_images_across_multiple_fields(self, tmp_path):
+        """Images in both the question and answer are all collected (#27)."""
+        note = self._note_with_body(tmp_path, "what? ![q](one.png) ::: ![a](two.png)")
+        names = [p.name for p in note.images]
+        assert names == ["one.png", "two.png"]
+
+    def test_multiple_images_in_one_field(self, tmp_path):
+        """Two images in a single field are both collected (#27)."""
+        note = self._note_with_body(tmp_path, "q ::: ![a](one.png) and ![b](two.png)")
+        names = [p.name for p in note.images]
+        assert names == ["one.png", "two.png"]
