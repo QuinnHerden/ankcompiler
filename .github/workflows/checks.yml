@@ -25,6 +25,12 @@ jobs:
           python-version: ['3.11', '3.12']
 
     runs-on: ubuntu-latest
+
+    # Mapped here so the publish step can skip cleanly when the secret is
+    # absent (the secrets context isn't available in `if:` directly).
+    env:
+      GIST_SECRET: ${{ secrets.GIST_SECRET }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -70,7 +76,7 @@ jobs:
           fi
 
       - name: Publish coverage badge
-        if: github.event_name == 'push' && (github.ref_name == 'dev' || github.ref_name == 'main') && matrix.python-version == '3.12'
+        if: github.event_name == 'push' && (github.ref_name == 'dev' || github.ref_name == 'main') && matrix.python-version == '3.12' && env.GIST_SECRET != ''
         uses: schneegans/dynamic-badges-action@0e50b8bad39e7e1afd3e4e9c2b7dd145fad07501 # v1.8.0
         with:
           auth: ${{ secrets.GIST_SECRET }}
