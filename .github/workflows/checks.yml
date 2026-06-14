@@ -32,7 +32,7 @@ jobs:
       GIST_SECRET: ${{ secrets.GIST_SECRET }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Run Release Check
         shell: bash
@@ -40,7 +40,7 @@ jobs:
           bash scripts/check_release.sh
 
       - name: Setup PDM
-        uses: pdm-project/setup-pdm@v4
+        uses: pdm-project/setup-pdm@v4.5
         with:
           python-version: ${{ matrix.python-version }}
           cache: true
