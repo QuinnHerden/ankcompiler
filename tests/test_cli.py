@@ -79,6 +79,20 @@ class TestList:
         assert result.exit_code == 1
 
 
+class TestCheck:
+    @staticmethod
+    def test_check_clean_deck():
+        result = runner.invoke(app, ["check", "--deck", "foo", "--path", "tests"])
+        assert result.exit_code == 0
+        assert "no problems found" in result.stdout
+
+    @staticmethod
+    def test_check_invalid_selection():
+        result = runner.invoke(app, ["check"])  # no --deck and no --all
+        assert result.exit_code == 1
+        assert "Not a valid source selection." in result.stdout
+
+
 class TestBuild:
     @staticmethod
     def test_build_one():
