@@ -4,6 +4,8 @@ on:
   workflow_dispatch:
   push:
     branches:
+      - dev
+      - main
       - feature/**
       - features/**
   pull_request:
@@ -20,9 +22,15 @@ jobs:
   checks:
     strategy:
         matrix:
-          python-version: [3.11, 3.12]
+          python-version: ['3.11', '3.12']
 
     runs-on: ubuntu-latest
+
+    # Mapped here so the publish step can skip cleanly when the secret is
+    # absent (the secrets context isn't available in `if:` directly).
+    env:
+      GIST_SECRET: ${{ secrets.GIST_SECRET }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -45,6 +53,37 @@ jobs:
       
       - name: Run Security Check
         run: pdm run secure
-      
-      - name: Run Test Suite
-        run: pdm run test
+
+      - name: Run Test Suite with Coverage
+        run: pdm run coverage
+
+      # Badge publishing only runs on pushes to dev/main (not PRs, where the
+      # gist secret is unavailable to untrusted code) and on a single Python
+      # version so the matrix doesn't publish twice.
+      - name: Extract coverage percentage
+        id: cov
+        if: github.event_name == 'push' && (github.ref_name == 'dev' || github.ref_name == 'main') && matrix.python-version == '3.12'
+        run: |
+          pct=$(python -c "import json; print(round(json.load(open('coverage.json'))['totals']['percent_covered'], 1))")
+          echo "pct=$pct" >> "$GITHUB_OUTPUT"
+          # Per-branch badge files so dev and main don't overwrite each other.
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            echo "suffix=" >> "$GITHUB_OUTPUT"
+            echo "label=coverage" >> "$GITHUB_OUTPUT"
+          else
+            echo "suffix=-dev" >> "$GITHUB_OUTPUT"
+            echo "label=coverage (dev)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish coverage badge
+        if: github.event_name == 'push' && (github.ref_name == 'dev' || github.ref_name == 'main') && matrix.python-version == '3.12' && env.GIST_SECRET != ''
+        uses: schneegans/dynamic-badges-action@0e50b8bad39e7e1afd3e4e9c2b7dd145fad07501 # v1.8.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: ${{ vars.COVERAGE_GIST_ID }}
+          filename: ankcompiler-coverage${{ steps.cov.outputs.suffix }}.json
+          label: ${{ steps.cov.outputs.label }}
+          message: ${{ steps.cov.outputs.pct }}%
+          valColorRange: ${{ steps.cov.outputs.pct }}
+          minColorRange: 50
+          maxColorRange: 90
