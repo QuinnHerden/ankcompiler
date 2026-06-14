@@ -87,34 +87,26 @@ def _validate_chunk(
     chunk: Chunk, path: Path, line: int, seen_uids: Dict[str, Tuple[Path, int]]
 ) -> List[Finding]:
     findings: List[Finding] = []
-    meta = chunk._extract_meta()
 
-    uid = meta.get(settings.GUID_KEY)
-    if uid is None:
-        snippet = chunk.body.strip().splitlines()[0][:50]
-        findings.append(
-            Finding(path, line, "error", f'card block missing uid — "{snippet}"')
-        )
-    elif uid in seen_uids:
-        prev_file, prev_line = seen_uids[uid]
-        findings.append(
-            Finding(
-                path,
-                line,
-                "error",
-                f"duplicate uid '{uid}' (first seen at {prev_file}:{prev_line})",
+    # Chunk-level validity (missing uid, note type) comes from the chunk
+    # itself; this function adds location and the deck-level duplicate check.
+    for message in chunk.validate():
+        findings.append(Finding(path, line, "error", message))
+
+    uid = chunk.uid
+    if uid is not None:
+        if uid in seen_uids:
+            prev_file, prev_line = seen_uids[uid]
+            findings.append(
+                Finding(
+                    path,
+                    line,
+                    "error",
+                    f"duplicate uid '{uid}' (first seen at {prev_file}:{prev_line})",
+                )
             )
-        )
-    else:
-        seen_uids[uid] = (path, line)
-
-    # Type resolution + field extraction reuse the production logic; surface
-    # their errors as findings with location instead of aborting.
-    try:
-        note_type = chunk._resolve_type(meta)
-        chunk._extract_md_fields(note_type)
-    except ValueError as exc:
-        findings.append(Finding(path, line, "error", str(exc)))
+        else:
+            seen_uids[uid] = (path, line)
 
     return findings
 

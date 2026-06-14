@@ -59,16 +59,40 @@ class TestDeclaredNoteType:
 
 class TestExtractType:
     @staticmethod
-    def test_no_matching_type_raises():
-        chunk = Chunk(meta="", body="just some plain prose, no card syntax", file=None)
-        with pytest.raises(ValueError, match="Could not find a note type"):
-            chunk._extract_type()
+    def test_no_matching_type_reported():
+        chunk = Chunk(
+            meta="[^uid]: abc1234567", body="plain prose, no card syntax", file=None
+        )
+        assert any("Could not find a note type" in e for e in chunk.validate())
 
     @staticmethod
-    def test_ambiguous_type_raises():
-        chunk = Chunk(meta="", body="front ::: back {{c1:: cloze}}", file=None)
-        with pytest.raises(ValueError, match="Found more than one note type"):
-            chunk._extract_type()
+    def test_ambiguous_type_reported():
+        chunk = Chunk(
+            meta="[^uid]: abc1234567", body="front ::: back {{c1:: cloze}}", file=None
+        )
+        assert any("Found more than one note type" in e for e in chunk.validate())
+
+
+class TestChunkValidate:
+    @staticmethod
+    def test_valid_chunk_has_no_errors_and_exposes_uid():
+        chunk = Chunk(meta="[^uid]: abc1234567", body="q ::: a", file=None)
+        assert chunk.validate() == []
+        assert chunk.uid == "abc1234567"
+
+    @staticmethod
+    def test_missing_uid_reported_and_uid_none():
+        chunk = Chunk(meta="", body="q ::: a", file=None)
+        errors = chunk.validate()
+        assert any("missing uid" in e for e in errors)
+        assert chunk.uid is None
+
+    @staticmethod
+    def test_unknown_type_reported():
+        chunk = Chunk(
+            meta="[^uid]: abc1234567\n[^type]: bogus", body="q ::: a", file=None
+        )
+        assert any("Unknown note type 'bogus'" in e for e in chunk.validate())
 
 
 class TestExtractMeta:

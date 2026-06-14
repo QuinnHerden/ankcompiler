@@ -216,6 +216,31 @@ class Chunk:
 
         return note
 
+    @property
+    def uid(self) -> Optional[str]:
+        """The note's declared uid, or None if it has none."""
+        return self._extract_meta().get(settings.GUID_KEY)
+
+    def validate(self) -> List[str]:
+        """Returns chunk-level validation errors, empty when the chunk is
+        valid. Covers a missing uid and an unresolvable or mismatched note
+        type. Deck-level checks (duplicate uid, frontmatter) live in the
+        caller."""
+        errors: List[str] = []
+        meta_dict = self._extract_meta()
+
+        if meta_dict.get(settings.GUID_KEY) is None:
+            snippet = self.body.strip().splitlines()[0][:50]
+            errors.append(f'card block missing uid: "{snippet}"')
+
+        try:
+            note_type = self._resolve_type(meta_dict)
+            self._extract_md_fields(note_type)
+        except ValueError as exc:
+            errors.append(str(exc))
+
+        return errors
+
     def _extract_meta(self) -> dict:
         """
         Extracts footer metadata from note chunk.
@@ -250,10 +275,6 @@ class Chunk:
                 meta_dict[key] = value
 
         return meta_dict
-
-    def _extract_type(self) -> "NoteType":
-        """Resolves the note type for this chunk (parsing meta on demand)."""
-        return self._resolve_type(self._extract_meta())
 
     def _resolve_type(self, meta_dict: dict) -> "NoteType":
         """Resolves the note type from already-parsed metadata.
