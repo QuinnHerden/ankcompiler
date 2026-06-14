@@ -31,10 +31,11 @@ class Deck:
         package = GenAnkiPackage(deck)
 
         chunks = self._get_chunks()
+        images = []
         for chunk in chunks:
             note = chunk.extract_note()
 
-            package.media_files.extend(note.images)
+            images.extend(note.images)
 
             deck.add_note(
                 GenAnkiNote(
@@ -42,9 +43,40 @@ class Deck:
                 )
             )
 
+        package.media_files = self._dedupe_media(images)
+
         file_name = clean_str_for_filename(self.name)
         write_path = Path(f"{output_path}/{file_name}.apkg")
         package.write_to_file(write_path)
+
+    @staticmethod
+    def _dedupe_media(images: List[Path]) -> List[Path]:
+        """De-duplicate media paths, erroring on basename collisions.
+
+        Anki keys media by basename, so two distinct files sharing a name
+        (e.g. ``a/diagram.png`` and ``b/diagram.png``) would silently clobber
+        each other in the package. De-duplicate identical files (same resolved
+        path) and raise on a genuine basename collision.
+        """
+        by_basename: dict = {}  # basename -> resolved path
+        deduped: List[Path] = []
+
+        for image in images:
+            resolved = image.resolve()
+            existing = by_basename.get(image.name)
+
+            if existing is not None:
+                if existing == resolved:
+                    continue  # same file referenced again
+                raise ValueError(
+                    f"Media basename collision: '{image.name}' refers to both "
+                    f"{existing} and {resolved}"
+                )
+
+            by_basename[image.name] = resolved
+            deduped.append(image)
+
+        return deduped
 
     def _get_chunks(self) -> List["Chunk"]:
         """Returns list of all chunks within scope."""
