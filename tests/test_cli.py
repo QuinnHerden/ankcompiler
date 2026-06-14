@@ -49,51 +49,34 @@ class TestGen:
 
 class TestList:
     @staticmethod
-    def test_list_deck():
-        result = runner.invoke(  # not a deep enough search
+    def test_list_deck_recurses_by_default():
+        # default: search all subdirectories of --path (deck lives in tests/decks)
+        result = runner.invoke(app, ["list", "deck", "--path", "tests"])
+        assert result.exit_code == 0
+        assert "foo" in result.stdout
+
+    @staticmethod
+    def test_list_deck_depth_limits():
+        result = runner.invoke(  # root only -> deck lives deeper, so none found
             app,
-            [
-                "list",
-                "deck",
-            ],
+            ["list", "deck", "--path", "tests", "--depth", "0"],
         )
         assert result.exit_code == 1
 
+    @staticmethod
+    def test_list_file_recurses_by_default():
         result = runner.invoke(
-            app,
-            [
-                "list",
-                "deck",
-                "--depth",
-                "2",
-            ],
+            app, ["list", "file", "--deck", "foo", "--path", "tests"]
         )
         assert result.exit_code == 0
 
     @staticmethod
-    def test_list_file():
-        result = runner.invoke(  # not a deep enough search
-            app,
-            [
-                "list",
-                "file",
-                "--deck",
-                "foo",
-            ],
-        )
-        assert result.exit_code == 1
-
+    def test_list_file_depth_limits():
         result = runner.invoke(
             app,
-            [
-                "list",
-                "file",
-                "--deck",
-                "foo",
-                "--depth",
-                "2",
-            ],
+            ["list", "file", "--deck", "foo", "--path", "tests", "--depth", "0"],
         )
+        assert result.exit_code == 1
 
 
 class TestBuild:
@@ -109,6 +92,11 @@ class TestBuild:
                 "2",
             ],
         )
+        assert result.exit_code == 0
+
+    @staticmethod
+    def test_build_one_recurses_by_default():
+        result = runner.invoke(app, ["build", "--deck", "foo", "--path", "tests"])
         assert result.exit_code == 0
 
     @staticmethod

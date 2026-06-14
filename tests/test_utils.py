@@ -69,3 +69,24 @@ class TestSearchFiles:
         assert names(0) == ["top.md"]
         assert names(1) == ["mid.md", "top.md"]
         assert names(2) == ["low.md", "mid.md", "top.md"]
+
+    def test_unlimited_depth_by_default(self, tmp_path):
+        self._make_tree(tmp_path)
+        found = sorted(p.name for p in search_files(".md", tmp_path))
+        assert found == ["low.md", "mid.md", "top.md"]
+
+    def test_hidden_directories_skipped(self, tmp_path):
+        self._make_tree(tmp_path)
+        hidden = tmp_path / ".git"
+        hidden.mkdir()
+        (hidden / "internal.md").write_text("x")
+        found = sorted(p.name for p in search_files(".md", tmp_path))
+        assert "internal.md" not in found
+
+    def test_symlink_cycle_does_not_recurse(self, tmp_path):
+        self._make_tree(tmp_path)
+        loop = tmp_path / "sub" / "loop"
+        loop.symlink_to(tmp_path, target_is_directory=True)  # points back to root
+        # must terminate (no infinite recursion) and ignore the symlinked dir
+        found = sorted(p.name for p in search_files(".md", tmp_path))
+        assert found == ["low.md", "mid.md", "top.md"]

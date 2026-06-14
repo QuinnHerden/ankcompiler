@@ -22,7 +22,7 @@ from app.logic.utils import (
 class Deck:
     name: str
     source_search_path: Path
-    source_search_depth: int
+    source_search_depth: Optional[int]
 
     def compile(self, output_path: Path) -> None:
         """Packages a deck."""
