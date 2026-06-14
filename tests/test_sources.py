@@ -1,5 +1,89 @@
-from app.logic.sources import File
+import pytest
+
+from app.logic.sources import Chunk, File
 from app.logic.utils import parse_markdown_file
+
+
+def build_note(tmp_path, body, frontmatter="deck: foo", meta="[^uid]: abc1234567"):
+    """Compile a single-card deck and return its extracted Note."""
+    deck = tmp_path / "deck.md"
+    deck.write_text(f"---\n{frontmatter}\n---\n---\n\n{body}\n\n---\n{meta}\n")
+    parsed_meta, parsed_body = parse_markdown_file(deck)
+    chunks = File(path=deck, meta=parsed_meta, body=parsed_body).extract_chunks()
+    assert len(chunks) == 1
+    return chunks[0].extract_note()
+
+
+class TestExtractType:
+    @staticmethod
+    def test_no_matching_type_raises():
+        chunk = Chunk(meta="", body="just some plain prose, no card syntax", file=None)
+        with pytest.raises(ValueError, match="Could not find a note type"):
+            chunk._extract_type()
+
+    @staticmethod
+    def test_ambiguous_type_raises():
+        chunk = Chunk(meta="", body="front ::: back {{c1:: cloze}}", file=None)
+        with pytest.raises(ValueError, match="Found more than one note type"):
+            chunk._extract_type()
+
+
+class TestExtractMeta:
+    @staticmethod
+    def test_guid_and_multiple_tags():
+        chunk = Chunk(
+            meta="[^uid]: abc1234567\n[^tag]: t1\n[^tag]: t2\n", body="", file=None
+        )
+        meta = chunk._extract_meta()
+        assert meta["uid"] == "abc1234567"
+        assert meta["tag"] == ["t1", "t2"]
+
+    @staticmethod
+    def test_missing_guid_yields_none():
+        chunk = Chunk(meta="[^tag]: t1\n", body="", file=None)
+        meta = chunk._extract_meta()
+        assert meta["uid"] is None
+
+
+class TestExtractNote:
+    def test_qa_fields_and_model(self, tmp_path):
+        note = build_note(tmp_path, "what is 2+2? ::: 4")
+        assert "Question_Answer" in note.model.name
+        assert "<p>what is 2+2?" in note.fields[0]
+        assert "<p>4</p>" in note.fields[1]
+        assert note.fields[-1] == "deck.md"  # source filename
+
+    def test_qa_multiline_body(self, tmp_path):
+        note = build_note(tmp_path, "question and\n:::\nanswer on\nmultiple lines")
+        assert "Question_Answer" in note.model.name
+        assert "question and" in note.fields[0]
+        assert "multiple lines" in note.fields[1]
+
+    def test_cloze_fields_and_model(self, tmp_path):
+        note = build_note(tmp_path, "the capital is {{c1:: Paris}}")
+        assert note.model.name.endswith("Cloze")
+        assert "{{c1:: Paris}}" in note.fields[0]
+
+    def test_tags_merge_frontmatter_and_note(self, tmp_path):
+        note = build_note(
+            tmp_path,
+            "q ::: a",
+            frontmatter="deck: foo\ntags:\n  - shared\n  - dup",
+            meta="[^uid]: abc1234567\n[^tag]: dup\n[^tag]: own",
+        )
+        # note-level tags first, frontmatter tags appended, duplicates removed
+        assert note.tags == ["dup", "own", "shared"]
+
+    def test_scalar_frontmatter_tag(self, tmp_path):
+        """A single scalar `tags:` value is supported, not just a list."""
+        note = build_note(tmp_path, "q ::: a", frontmatter="deck: foo\ntags: solo")
+        assert note.tags == ["solo"]
+
+    @staticmethod
+    def test_missing_guid_raises():
+        chunk = Chunk(meta="", body="q ::: a", file=None)
+        with pytest.raises(ValueError, match="No guid found"):
+            chunk.extract_note()
 
 
 class TestEndOfDocument:
