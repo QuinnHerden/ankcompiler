@@ -1,4 +1,6 @@
 # AnkCompiler
+[![coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/QuinnHerden/882ab688aad6241baa6581d3f4adc13a/raw/ankcompiler-coverage.json)](https://github.com/QuinnHerden/ankcompiler/actions/workflows/checks.yml)
+
 A CLI tool for compiling Anki decks, defined in Markdown.
 ## Installation
 Run `pip install ankcompiler`

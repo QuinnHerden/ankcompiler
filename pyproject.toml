@@ -27,6 +27,7 @@ dev = [
     "black>=24.4.2",
     "flake8>=7.1.0",
     "pytest>=8.2.2",
+    "pytest-cov>=5.0.0",
     "bandit>=1.7.9",
 ]
 
@@ -35,6 +36,7 @@ release = "sh scripts/check_release.sh"
 format = "pdm run black --check ."
 secure = "pdm run bandit -r app -ll"
 test = "pdm run pytest"
+coverage = "pdm run pytest --cov=app --cov-report=term-missing --cov-report=json"
 
 check = {composite  = [
     "release",
