@@ -20,10 +20,10 @@ requires-python = ">=3.11"
 readme = "README.md"
 license = {text = "MIT"}
 
-[tool.pdm]
-distribution = true
+[project.scripts]
+ankc = "app.main:app"
 
-[tool.pdm.dev-dependencies]
+[dependency-groups]
 dev = [
     "black>=24.4.2",
     "flake8>=7.1.0",
@@ -32,23 +32,12 @@ dev = [
     "bandit>=1.7.9",
 ]
 
-[tool.pdm.scripts]
-release = "sh scripts/check_release.sh"
-format = "pdm run black --check ."
-secure = "pdm run bandit -r app -ll"
-test = "pdm run pytest"
-coverage = "pdm run pytest --cov=app --cov-report=term-missing --cov-report=json"
-
-check = {composite  = [
-    "release",
-    "format",
-    "secure",
-    "test",
-]}
-
-[project.scripts]
-ankc = "app.main:app"
-
 [build-system]
-requires = ["pdm-backend"]
-build-backend = "pdm.backend"
+requires = ["uv_build>=0.7,<0.9"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+# The importable package is app/ at the repo root (flat layout), not a
+# src/ankcompiler/ layout, so point the backend at it explicitly.
+module-name = "app"
+module-root = ""

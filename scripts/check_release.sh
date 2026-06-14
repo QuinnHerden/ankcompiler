@@ -4,7 +4,7 @@
 version_pattern="^[0-9]+\.[0-9]+\.[0-9]+$"
 
 # Gathering version sources
-pyproject_version=$(grep 'version = ' pyproject.toml | cut -d '"' -f 2);
+pyproject_version=$(grep '^version = ' pyproject.toml | cut -d '"' -f 2);
 config_version=$(grep 'VERSION: str = ' app/config.py | cut -d '"' -f 2);
 
 # Check if each version variable matches the pattern

@@ -15,20 +15,19 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup PDM
-        uses: pdm-project/setup-pdm@v4.5
+      - name: Setup uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           python-version: 3.12
-          cache: true
+          enable-cache: true
 
-      - name: Install dependencies
-        run: pdm install
+      - name: Build
+        run: |
+          rm -rf dist
+          uv build
 
-      - name: Run Build
-        run: pdm build
-      
-      - name: Run Publish
-        run: pdm publish
+      - name: Publish
+        run: uv publish
         env:
-          PDM_PUBLISH_USERNAME: ${{ secrets.PDM_PUBLISH_USERNAME }}
-          PDM_PUBLISH_PASSWORD: ${{ secrets.PDM_PUBLISH_PASSWORD }}
+          UV_PUBLISH_USERNAME: ${{ secrets.PDM_PUBLISH_USERNAME }}
+          UV_PUBLISH_PASSWORD: ${{ secrets.PDM_PUBLISH_PASSWORD }}

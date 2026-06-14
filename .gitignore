@@ -51,9 +51,7 @@ cython_debug/
 # general
 __pycache__
 
-# pdm
-.pdm-python
-.pdm-build
+# uv / build
 dist
 
 # pytest
