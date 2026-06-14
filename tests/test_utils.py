@@ -22,14 +22,11 @@ class TestGenerateIntegerHash:
 class TestGenerateRandomString:
     @staticmethod
     def test_length_and_alphanumeric():
-        # Asserts the current contract (<= length); the function can return
-        # fewer than `length` chars (see issue #30). Tighten to == length
-        # once that bug is fixed.
         for length in (1, 5, 10, 20):
-            for _ in range(50):
+            for _ in range(200):
                 s = generate_random_string(length)
                 assert s.isalnum()
-                assert 0 < len(s) <= length
+                assert len(s) == length
 
 
 class TestCleanStrForFilename:

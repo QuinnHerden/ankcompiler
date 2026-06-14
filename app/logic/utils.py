@@ -1,8 +1,8 @@
-import base64
 import hashlib
 import logging
-import os
 import re
+import secrets
+import string
 from pathlib import Path
 from typing import List, Tuple
 
@@ -89,15 +89,9 @@ def generate_integer_hash(text: str) -> int:
 
 
 def generate_random_string(length: int = 10) -> str:
-    """
-    Generate a random string of a specified length using base64 encoding and
-    restricting characters to A-Z, a-z, and 0-9.
-    """
-    random_bytes = os.urandom(length)
-    random_base64 = base64.b64encode(random_bytes).decode("utf-8")
-    random_string = "".join(filter(str.isalnum, random_base64))[:length]
-
-    return random_string
+    """Generate a random alphanumeric string (A-Z, a-z, 0-9) of the given length."""
+    alphabet = string.ascii_letters + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
 def get_url_regex_expression() -> str:
