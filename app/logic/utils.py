@@ -91,6 +91,20 @@ def parse_markdown_file(file_path: Path) -> Tuple[dict, str]:
     return meta, body
 
 
+def frontmatter_end_offset(raw: str) -> int:
+    """Offset in ``raw`` where the post-frontmatter body begins (0 if none)."""
+    if raw.startswith("---"):
+        match = re.match(r"---\n.*?\n---\n", raw, re.DOTALL)
+        if match:
+            return match.end()
+    return 0
+
+
+def line_at(raw: str, offset: int) -> int:
+    """1-based line number of ``offset`` within ``raw``."""
+    return raw.count("\n", 0, offset) + 1
+
+
 def generate_integer_hash(text: str) -> int:
     """Generate an integer hash value for the given input string."""
     sha256_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
