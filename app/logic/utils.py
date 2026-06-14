@@ -4,29 +4,46 @@ import re
 import secrets
 import string
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import frontmatter
 from markdown import markdown
 from yaml.constructor import ConstructorError
 
 
-def search_files(extension: str, search_dir: Path, search_depth: int) -> List[Path]:
+def search_files(
+    extension: str, search_dir: Path, search_depth: Optional[int] = None
+) -> List[Path]:
     """
-    Looks for files with the given extension in
-    the given directory and its subdirectories
-    up to the specified search depth.
+    Looks for files with the given extension in the given directory and its
+    subdirectories. When ``search_depth`` is None all subdirectories are
+    searched; otherwise the search is limited to that many levels below the
+    root (depth 0 = root only).
+
+    Hidden directories (names starting with ".") and symlinked directories are
+    skipped, the latter to avoid symlink-cycle infinite recursion. Directories
+    that cannot be read are logged and skipped.
     """
 
     def search(current_dir: Path, current_depth: int) -> List[Path]:
-        if current_depth > search_depth:
+        if search_depth is not None and current_depth > search_depth:
+            return []
+
+        try:
+            items = list(current_dir.iterdir())
+        except OSError as exc:
+            logging.warning("Could not read directory %s: %s", current_dir, exc)
             return []
 
         result = []
-        for item in current_dir.iterdir():
+        for item in items:
             if item.is_file() and item.suffix == f"{extension}":
                 result.append(item)
-            elif item.is_dir():
+            elif (
+                item.is_dir()
+                and not item.is_symlink()
+                and not item.name.startswith(".")
+            ):
                 result.extend(search(item, current_depth + 1))
 
         return result
@@ -34,10 +51,11 @@ def search_files(extension: str, search_dir: Path, search_depth: int) -> List[Pa
     return search(search_dir, 0)
 
 
-def search_markdown_files(search_path: Path, search_depth: int) -> List[Path]:
-    """Get all markdown files in
-    the given directory and its subdirectories
-    up to the specified search depth.
+def search_markdown_files(
+    search_path: Path, search_depth: Optional[int] = None
+) -> List[Path]:
+    """Get all markdown files in the given directory and its subdirectories,
+    limited to ``search_depth`` levels when provided (None = unlimited).
     """
     return search_files(".md", search_path, search_depth)
 

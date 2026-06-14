@@ -23,7 +23,7 @@ def compile_src_decks(
     depth: Annotated[
         Optional[int],
         typer.Option(min=0, help=DEPTH_HELP_STR),
-    ] = 0,
+    ] = None,
     output: Annotated[
         Optional[Path],
         typer.Option(help="Declare the output directory to write compiled packages to"),

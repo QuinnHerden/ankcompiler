@@ -12,7 +12,7 @@ list_app = typer.Typer()
 @list_app.command("deck")
 def list_src_decks(
     path: Annotated[Optional[Path], typer.Option(help=PATH_HELP_STR)] = Path("."),
-    depth: Annotated[Optional[int], typer.Option(min=0, help=DEPTH_HELP_STR)] = 0,
+    depth: Annotated[Optional[int], typer.Option(min=0, help=DEPTH_HELP_STR)] = None,
 ) -> None:
     """Lists valid source decks."""
 
@@ -34,7 +34,7 @@ def list_src_decks(
 def list_src_files(
     deck: Annotated[str, typer.Option(help=DECK_HELP_STR)],
     path: Annotated[Optional[Path], typer.Option(help=PATH_HELP_STR)] = Path("."),
-    depth: Annotated[Optional[int], typer.Option(min=0, help=DEPTH_HELP_STR)] = 0,
+    depth: Annotated[Optional[int], typer.Option(min=0, help=DEPTH_HELP_STR)] = None,
 ) -> None:
     """Lists source files for a deck."""
 
