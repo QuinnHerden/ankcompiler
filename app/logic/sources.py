@@ -268,13 +268,13 @@ class Chunk:
     def _extract_images(self) -> List[Path]:
         """Extracts image paths from note chunk."""
         html_fields = self._extract_html_fields()
-        regex = r'.*<img.*src="(.*)".*'
+        # Relies on convert_md_to_html emitting double-quoted, single-line
+        # <img> tags; revisit this pattern if the renderer changes.
+        regex = r'<img[^>]*src="([^"]*)"'
 
         relative_image_paths = []
         for field in html_fields:
-            match = re.compile(regex, re.DOTALL).findall(field)
-            if len(match) >= 1:
-                relative_image_paths = list(match)
+            relative_image_paths.extend(re.findall(regex, field))
 
         full_image_paths = [
             Path(self.file.path).parent / x for x in relative_image_paths
