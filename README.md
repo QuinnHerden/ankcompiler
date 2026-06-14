@@ -7,20 +7,20 @@ Run `pip install ankcompiler`
 ## Usage
 Run `ankc --help` for usage information.
 
-Key commands:
-- `ankc build` — compile decks into `.apkg` packages.
-- `ankc check` — validate decks without compiling; reports problems with `file:line` (`--format json` available).
-- `ankc uid` — insert a `[^uid]` footnote into any card block missing one (idempotent; `--check` for a dry run). Refuses to rewrite files with uncommitted git changes unless `--force`.
+Main commands:
+- `ankc build` compiles decks into `.apkg` packages.
+- `ankc check` validates decks without compiling. It reports problems as `file:line`, and can print JSON with `--format json`.
+- `ankc uid` adds a `[^uid]` footnote to any card block that is missing one. It is safe to run more than once. Use `--check` for a dry run. It will not touch files with uncommitted git changes unless you pass `--force`.
 ### Examples
-See [`examples/example.md`](examples/example.md) for a deck exercising every note type, tags, and math.
+See [`examples/example.md`](examples/example.md) for a deck with every note type, tags, and math.
 ### Note types
-- **Question/Answer** — `front ::: back` (detected automatically).
-- **Cloze** — `{{c1:: ...}}` (detected automatically).
-- **Basic-and-reversed** — `front ::: back` with `[^type]: reversed`; generates both directions.
-- **Type-in-answer** — `question ::: answer` with `[^type]: type-in`.
+- Question and answer: `front ::: back`. Found automatically.
+- Cloze: `{{c1:: ...}}`. Found automatically.
+- Basic and reversed: `front ::: back` plus `[^type]: reversed`. This makes a card in both directions.
+- Type in the answer: `question ::: answer` plus `[^type]: type-in`.
 
-Reversed and type-in cards share the `:::` syntax, so declare them explicitly with a `[^type]` footnote alongside `[^uid]`.
+Reversed and type-in cards use the same `:::` syntax as a question and answer card. So you name them with a `[^type]` footnote next to the `[^uid]`.
 ### Math
-Inline (`$...$`) and block (`$$...$$`) LaTeX is rendered by Anki's MathJax. Use `\$` for a literal dollar sign.
+Write inline math as `$...$` and block math as `$$...$$`. Anki renders it with MathJax. To show a real dollar sign, write `\$`.
 ## Credits
 Inspiration taken from [lukesmurry](https://github.com/lukesmurray/markdown-anki-decks)

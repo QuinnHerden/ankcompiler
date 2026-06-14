@@ -5,9 +5,10 @@ tags:
 ---
 
 A source deck is YAML frontmatter (above) followed by card blocks. Prose like
-this paragraph is ignored — only the `---`-delimited blocks become cards. Each
-block is followed by footnotes: a required `[^uid]` (stable card identity, so
-re-importing updates rather than duplicates) and optional `[^tag]` / `[^type]`.
+this paragraph is ignored. Only the `---` blocks become cards. Each block is
+followed by footnotes. The `[^uid]` is required. It gives the card a stable id,
+so re-importing updates the card instead of making a duplicate. The `[^tag]` and
+`[^type]` footnotes are optional.
 
 ---
 
