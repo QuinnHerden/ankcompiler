@@ -93,6 +93,59 @@ class TestCheck:
         assert "Not a valid source selection." in result.stdout
 
 
+DRAFT_DECK = "---\ndeck: drafty\n---\n" "\nq1 ::: a1\n\n---\n\nq2 ::: a2\n\n---\n"
+
+
+class TestUidFix:
+    @staticmethod
+    def test_fix_reformats_draft(tmp_path):
+        deck = tmp_path / "d.md"
+        deck.write_text(DRAFT_DECK)
+        result = runner.invoke(
+            app, ["uid", "--fix", "--force", "--path", str(tmp_path)]
+        )
+        assert result.exit_code == 0
+        assert "reformatted" in result.stdout
+        assert len(re.findall(r"\[\^uid\]: [A-Za-z0-9]{10}", deck.read_text())) == 2
+
+    @staticmethod
+    def test_fix_check_reports_without_writing(tmp_path):
+        deck = tmp_path / "d.md"
+        deck.write_text(DRAFT_DECK)
+        before = deck.read_text()
+        result = runner.invoke(
+            app, ["uid", "--fix", "--check", "--force", "--path", str(tmp_path)]
+        )
+        assert result.exit_code == 1  # work pending
+        assert "would reformat" in result.stdout
+        assert deck.read_text() == before  # nothing written
+
+    @staticmethod
+    def test_fixed_draft_then_builds(tmp_path):
+        deck_dir = tmp_path / "drafty"
+        deck_dir.mkdir()
+        (deck_dir / "d.md").write_text(DRAFT_DECK)
+        out = tmp_path / "dist"
+        out.mkdir()
+        runner.invoke(app, ["uid", "--fix", "--force", "--path", str(tmp_path)])
+        result = runner.invoke(
+            app,
+            [
+                "build",
+                "--deck",
+                "drafty",
+                "--path",
+                str(tmp_path),
+                "--depth",
+                "2",
+                "--output",
+                str(out),
+            ],
+        )
+        assert result.exit_code == 0
+        assert list(out.glob("*.apkg"))
+
+
 class TestBuild:
     @staticmethod
     def test_build_one():
@@ -138,3 +191,16 @@ class TestBuild:
         )
         assert result.exit_code == 1
         assert "Not a valid source selection." in result.stdout
+
+    @staticmethod
+    def test_build_aborts_on_dropped_card(tmp_path):
+        # an unfixed draft would silently drop cards — build must abort
+        deck_dir = tmp_path / "drafty"
+        deck_dir.mkdir()
+        (deck_dir / "d.md").write_text(DRAFT_DECK)
+        result = runner.invoke(
+            app,
+            ["build", "--deck", "drafty", "--path", str(tmp_path), "--depth", "2"],
+        )
+        assert result.exit_code == 1
+        assert "silently dropped" in result.stdout

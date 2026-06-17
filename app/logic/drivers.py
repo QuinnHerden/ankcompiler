@@ -8,7 +8,13 @@ from app.logic.utils import (
     parse_markdown_file,
     search_markdown_files,
 )
-from app.logic.stamping import StampResult, file_is_dirty, stamp_file
+from app.logic.stamping import (
+    FixResult,
+    StampResult,
+    file_is_dirty,
+    fix_file,
+    stamp_file,
+)
 from app.logic.validation import Finding, validate_files
 
 
@@ -111,6 +117,22 @@ def stamp_source_files(
     )
     return [
         stamp_file(path=path, search_root=source_search_path, dry_run=dry_run)
+        for path in files
+    ]
+
+
+def fix_source_files(
+    source_search_path: Path,
+    source_search_depth: Optional[int],
+    dry_run: bool,
+) -> List[FixResult]:
+    """Normalizes draft card blocks across all markdown files under the search
+    path, expanding single-``---``-separated cards and stamping missing uids."""
+    files = search_markdown_files(
+        search_path=source_search_path, search_depth=source_search_depth
+    )
+    return [
+        fix_file(path=path, search_root=source_search_path, dry_run=dry_run)
         for path in files
     ]
 

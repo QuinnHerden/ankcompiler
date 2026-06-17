@@ -11,6 +11,7 @@ Main commands:
 - `ankc build` compiles decks into `.apkg` packages.
 - `ankc check` validates decks without compiling. It reports problems as `file:line`, and can print JSON with `--format json`.
 - `ankc uid` adds a `[^uid]` footnote to any card block that is missing one. It is safe to run more than once. Use `--check` for a dry run. It will not touch files with uncommitted git changes unless you pass `--force`.
+  - Add `--fix` to also repair a draft deck whose cards are separated by a single `---`: it rewrites them into well-formed card blocks and stamps any missing uids. So you can draft fast, then `ankc uid --fix` to make the deck buildable.
 ### Examples
 See [`examples/example.md`](examples/example.md) for a deck with every note type, tags, and math.
 ### Note types
