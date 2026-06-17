@@ -72,6 +72,44 @@ class TestValidateFiles:
         findings = validate_files([path])
         assert any("malformed or unterminated" in f.message for f in findings)
 
+    def test_merged_cards_is_error_not_warning(self, tmp_path):
+        # two cards sharing a single "---": the second has no opening delimiter
+        # and would be silently dropped at compile time. Must be an error so the
+        # build aborts rather than losing the card.
+        path = write_deck(
+            tmp_path,
+            "---\ndeck: foo\n---\n" "---\n\nq1 ::: a1\n\n---\n\nq2 ::: a2\n\n---\n",
+        )
+        findings = validate_files([path])
+        merged = [f for f in findings if "silently dropped" in f.message]
+        assert len(merged) == 1
+        assert merged[0].level == "error"
+
+    def test_prose_outside_block_not_flagged(self, tmp_path):
+        # explanatory prose before the first card block is intentionally
+        # ignored (see examples/example.md), not a dropped card
+        path = write_deck(
+            tmp_path,
+            "---\ndeck: foo\n---\n"
+            "This paragraph documents the deck and is ignored.\n\n"
+            "---\n\nq ::: a\n\n---\n[^uid]: abc1234567\n",
+        )
+        findings = validate_files([path])
+        assert not any("silently dropped" in f.message for f in findings)
+
+    def test_dropped_cloze_card_flagged(self, tmp_path):
+        # a cloze card sharing a single "---" with its neighbor would be dropped
+        path = write_deck(
+            tmp_path,
+            "---\ndeck: foo\n---\n"
+            "---\n\nq1 ::: a1\n\n---\n[^uid]: abc1234567\n\n"
+            "{{c1::orphaned}} cloze\n\n---\n",
+        )
+        findings = validate_files([path])
+        dropped = [f for f in findings if "silently dropped" in f.message]
+        assert len(dropped) == 1
+        assert dropped[0].level == "error"
+
     def test_finding_reports_line_number(self, tmp_path):
         path = write_deck(tmp_path, "---\ndeck: foo\n---\n---\n\nq ::: a\n\n---\n")
         findings = validate_files([path])

@@ -25,8 +25,12 @@ _NOTE = rf"(?:---\n\s*\n+(?P<body>{NOTE_BODY})\n\s*\n---\n+)"
 _META = rf"(?P<meta>(?:{GUID_FOOTNOTE}|{TAG_FOOTNOTE}|{TYPE_FOOTNOTE})*)"
 _BLOCK_RE = re.compile(_NOTE + _META)
 
-# Anything that looks like a card opener: a "---" line followed by a blank line.
-_OPENER_RE = re.compile(r"(?m)^---\n\s*\n")
+# A footnote line ("[^uid]: ...") is benign outside a matched block.
+_FOOTNOTE_LINE_RE = re.compile(r"^\[\^\w+\]:")
+# Card syntax: a "::: " Q/A separator or a "{{cN::" cloze. Its presence outside
+# a matched block means a card was meant there but won't compile. Prose without
+# it is intentionally ignored (see examples/example.md), so it is not flagged.
+_CARD_SYNTAX_RE = re.compile(r":::|\{\{ *c\d+ *::")
 
 
 @dataclass
@@ -78,7 +82,7 @@ def _validate_file(path: Path, seen_uids: Dict[str, Tuple[Path, int]]) -> List[F
         chunk = Chunk(body=match.group("body"), meta=match.group("meta"), file=file_obj)
         findings.extend(_validate_chunk(chunk, path, line, seen_uids))
 
-    findings.extend(_check_unparsed_openers(body, body_start, raw, matched_spans, path))
+    findings.extend(_check_dropped_content(body, body_start, raw, matched_spans, path))
 
     return findings
 
@@ -111,29 +115,57 @@ def _validate_chunk(
     return findings
 
 
-def _check_unparsed_openers(
+def _check_dropped_content(
     body: str,
     body_start: int,
     raw: str,
     matched_spans: List[Tuple[int, int]],
     path: Path,
 ) -> List[Finding]:
-    """Flags card-like openers that no well-formed block consumed."""
+    """Flags card-like text that falls outside every well-formed block.
+
+    The compiler only emits notes for text the block grammar matches, and prose
+    outside a block is intentionally ignored (see examples/example.md). But text
+    carrying card syntax ("::" Q/A or a cloze) outside a block is a card that
+    won't compile — usually two cards sharing a single "---" (so the second has
+    no opening delimiter), an unterminated block, or a draft whose cards aren't
+    fenced. That would be silently dropped, so it is reported as an error and the
+    build aborts. Run `ankc uid --fix` to repair a draft.
+    """
     findings: List[Finding] = []
-    for opener in _OPENER_RE.finditer(body):
-        inside = any(start <= opener.start() < end for start, end in matched_spans)
-        if not inside:
-            line = line_at(raw, body_start + opener.start())
-            # Heuristic (a stray "---" in prose can trip it), so warn rather
-            # than error — this must not block an otherwise valid build.
-            findings.append(
-                Finding(
-                    path,
-                    line,
-                    "warning",
-                    "possibly malformed or unterminated card block",
+
+    # Compute the gaps in the body not covered by any matched block span.
+    gaps: List[Tuple[int, int]] = []
+    cursor = 0
+    for start, end in sorted(matched_spans):
+        if start > cursor:
+            gaps.append((cursor, start))
+        cursor = max(cursor, end)
+    if cursor < len(body):
+        gaps.append((cursor, len(body)))
+
+    for gap_start, gap_end in gaps:
+        segment = body[gap_start:gap_end]
+        if not _CARD_SYNTAX_RE.search(segment):
+            continue  # blanks, delimiters, footnotes, or ignored prose
+
+        # Point at the first non-structural line in the gap.
+        offset = gap_start
+        for line in segment.splitlines(keepends=True):
+            stripped = line.strip()
+            if stripped and stripped != "---" and not _FOOTNOTE_LINE_RE.match(stripped):
+                findings.append(
+                    Finding(
+                        path,
+                        line_at(raw, body_start + offset),
+                        "error",
+                        "malformed or unterminated card block — this content is "
+                        "not inside a well-formed card and would be silently "
+                        "dropped (run `ankc uid --fix` to repair a draft)",
+                    )
                 )
-            )
+                break  # one finding per gap is enough to flag the defect
+            offset += len(line)
     return findings
 
 
