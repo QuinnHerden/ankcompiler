@@ -1,10 +1,10 @@
 import json
 from pathlib import Path
-from typing import Annotated, List, Optional
+from typing import Annotated, Optional
 
 import typer
 
-from app.cli import DEPTH_HELP_STR, PATH_HELP_STR
+from app.cli import DEPTH_HELP_STR, PATH_HELP_STR, select_decks
 from app.logic.drivers import list_source_decks, validate_deck_files
 from app.logic.validation import findings_to_dicts, format_findings
 
@@ -17,7 +17,9 @@ def check_src_decks(
         Optional[bool],
         typer.Option("--all", help="Check every deck"),
     ] = False,
-    deck: Annotated[Optional[str], typer.Option(help="Check an explicit deck")] = None,
+    deck: Annotated[
+        Optional[str], typer.Option(help="Check an explicit deck and its subdecks")
+    ] = None,
     path: Annotated[Optional[Path], typer.Option(help=PATH_HELP_STR)] = Path("."),
     depth: Annotated[Optional[int], typer.Option(min=0, help=DEPTH_HELP_STR)] = None,
     format_: Annotated[
@@ -27,15 +29,11 @@ def check_src_decks(
 ) -> None:
     """Validates deck source files without compiling them."""
 
-    if all_:
-        deck_names: List[str] = list_source_decks(
-            source_search_path=path, source_search_depth=depth
-        )
-    elif deck is not None:
-        deck_names = [deck]
-    else:
-        typer.echo("Not a valid source selection.")
-        raise typer.Exit(1)
+    deck_names = select_decks(
+        all_,
+        deck,
+        list_source_decks(source_search_path=path, source_search_depth=depth),
+    )
 
     findings = validate_deck_files(
         deck_names=deck_names,

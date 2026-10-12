@@ -1,10 +1,12 @@
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from app.config import settings
-from app.logic.sources import Deck
+from app.logic.sources import Deck, compile_package
 from app.logic.utils import (
+    clean_str_for_filename,
     generate_random_string,
+    normalize_deck_name,
     parse_markdown_file,
     search_markdown_files,
 )
@@ -18,35 +20,63 @@ from app.logic.stamping import (
 from app.logic.validation import Finding, validate_files
 
 
+def deck_family(deck_name: str, source_names: List[str]) -> List[str]:
+    """Returns the deck and its subdecks (``deck_name::...``) among the source
+    decks."""
+    prefix = f"{deck_name}::"
+    return sorted(
+        name for name in source_names if name == deck_name or name.startswith(prefix)
+    )
+
+
+def root_decks(source_names: List[str]) -> List[str]:
+    """Returns the top-level deck names, one per deck hierarchy."""
+    return sorted({name.split("::")[0] for name in source_names})
+
+
 def compile_deck(
     deck_name: str,
-    source_search_path: Path,
-    source_search_depth: Optional[int],
-    output_path: Path,
-) -> None:
-    """Compiles a single deck."""
-    source = Deck(
-        name=deck_name,
-        source_search_path=source_search_path,
-        source_search_depth=source_search_depth,
-    )
-    source.compile(output_path=output_path)
-
-
-def compile_decks(
     deck_names: List[str],
     source_search_path: Path,
     source_search_depth: Optional[int],
     output_path: Path,
 ) -> None:
-    """Compiles a list of source decks."""
-    for source_name in deck_names:
+    """Compiles a deck family (``deck_names``) into a single package named after
+    ``deck_name``."""
+    decks = [
+        Deck(
+            name=name,
+            source_search_path=source_search_path,
+            source_search_depth=source_search_depth,
+        )
+        for name in deck_names
+    ]
+    compile_package(name=deck_name, decks=decks, output_path=output_path)
+
+
+def compile_decks(
+    source_names: List[str],
+    source_search_path: Path,
+    source_search_depth: Optional[int],
+    output_path: Path,
+) -> None:
+    """Compiles one package per top-level deck."""
+    for root in root_decks(source_names):
         compile_deck(
-            deck_name=source_name,
+            deck_name=root,
+            deck_names=deck_family(root, source_names),
             source_search_path=source_search_path,
             source_search_depth=source_search_depth,
             output_path=output_path,
         )
+
+
+def package_name_collisions(deck_names: List[str]) -> List[List[str]]:
+    """Returns groups of deck names that would write the same package file."""
+    by_file_name: Dict[str, List[str]] = {}
+    for name in deck_names:
+        by_file_name.setdefault(clean_str_for_filename(name), []).append(name)
+    return [names for names in by_file_name.values() if len(names) > 1]
 
 
 def list_source_decks(
@@ -63,7 +93,7 @@ def list_source_decks(
     for file_path in markdown_file_paths:
         meta = parse_markdown_file(file_path)[0]
 
-        deck_name = meta.get(settings.DECK_TITLE_KEY)
+        deck_name = normalize_deck_name(meta.get(settings.DECK_TITLE_KEY))
 
         if deck_name is not None:
             deck_set.add(deck_name)

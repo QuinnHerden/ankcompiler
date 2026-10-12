@@ -3,6 +3,7 @@ from app.logic.utils import (
     convert_md_to_html,
     generate_integer_hash,
     generate_random_string,
+    normalize_deck_name,
     search_files,
 )
 
@@ -118,3 +119,19 @@ class TestSearchFiles:
         # must terminate (no infinite recursion) and ignore the symlinked dir
         found = sorted(p.name for p in search_files(".md", tmp_path))
         assert found == ["low.md", "mid.md", "top.md"]
+
+
+class TestNormalizeDeckName:
+    @staticmethod
+    def test_trims_parts_and_drops_empty_ones():
+        assert normalize_deck_name(" Geo :: Rivers ") == "Geo::Rivers"
+        assert normalize_deck_name("::Geo::") == "Geo"
+
+    @staticmethod
+    def test_coerces_non_strings():
+        assert normalize_deck_name(2024) == "2024"
+
+    @staticmethod
+    def test_empty_is_none():
+        assert normalize_deck_name(None) is None
+        assert normalize_deck_name(" :: ") is None

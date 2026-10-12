@@ -3,13 +3,16 @@ from typing import Annotated, Optional
 
 import typer
 
-from app.cli import DEPTH_HELP_STR, PATH_HELP_STR
+from app.cli import DEPTH_HELP_STR, PATH_HELP_STR, select_decks
 from app.logic.drivers import (
     compile_deck,
     compile_decks,
     list_source_decks,
+    package_name_collisions,
+    root_decks,
     validate_deck_files,
 )
+from app.logic.utils import normalize_deck_name
 from app.logic.validation import format_findings
 
 build_app = typer.Typer()
@@ -33,9 +36,13 @@ def _abort_on_validation_errors(deck_names, search_path, search_depth) -> None:
 def compile_src_decks(
     all_: Annotated[
         Optional[bool],
-        typer.Option("--all", help="Compile every deck"),
+        typer.Option(
+            "--all", help="Compile every deck, one package per top-level deck"
+        ),
     ] = False,
-    deck: Annotated[Optional[str], typer.Option(help="Compile explicit deck")] = None,
+    deck: Annotated[
+        Optional[str], typer.Option(help="Compile explicit deck and its subdecks")
+    ] = None,
     path: Annotated[
         Optional[Path],
         typer.Option(help=PATH_HELP_STR),
@@ -59,24 +66,26 @@ def compile_src_decks(
         source_search_path=search_path, source_search_depth=search_depth
     )
 
-    if all_ is False and deck in source_names:
-        _abort_on_validation_errors([deck], search_path, search_depth)
-        compile_deck(
-            deck_name=deck,
-            source_search_path=search_path,
-            source_search_depth=search_depth,
-            output_path=output_path,
-        )
+    deck_names = select_decks(all_, deck, source_names)
+    _abort_on_validation_errors(deck_names, search_path, search_depth)
 
-    elif all_ is True:
-        _abort_on_validation_errors(source_names, search_path, search_depth)
+    if all_:
+        collisions = package_name_collisions(root_decks(source_names))
+        if collisions:
+            for names in collisions:
+                typer.echo(f"Decks {names} would write the same package file.")
+            raise typer.Exit(1)
         compile_decks(
-            deck_names=source_names,
+            source_names=source_names,
             source_search_path=search_path,
             source_search_depth=search_depth,
             output_path=output_path,
         )
-
     else:
-        typer.echo("Not a valid source selection.")
-        raise typer.Exit(1)
+        compile_deck(
+            deck_name=normalize_deck_name(deck),
+            deck_names=deck_names,
+            source_search_path=search_path,
+            source_search_depth=search_depth,
+            output_path=output_path,
+        )
