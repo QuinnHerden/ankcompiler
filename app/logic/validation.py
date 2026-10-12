@@ -15,6 +15,7 @@ from app.logic.sources import (
 from app.logic.utils import (
     frontmatter_end_offset,
     line_at,
+    normalize_deck_name,
     parse_markdown_file,
     read_file,
 )
@@ -47,25 +48,33 @@ class Finding:
 
 def validate_files(file_paths: List[Path]) -> List[Finding]:
     """Validates the given source files, returning all findings (deck-wide:
-    duplicate uids are detected across the whole set)."""
+    duplicate uids are detected across the whole set; media basename collisions
+    within each top-level deck, since that is what one package holds)."""
     findings: List[Finding] = []
     seen_uids: Dict[str, Tuple[Path, int]] = {}
+    seen_media: Dict[Tuple[str, str], Path] = {}
 
     for path in file_paths:
-        findings.extend(_validate_file(path, seen_uids))
+        findings.extend(_validate_file(path, seen_uids, seen_media))
 
     return findings
 
 
-def _validate_file(path: Path, seen_uids: Dict[str, Tuple[Path, int]]) -> List[Finding]:
+def _validate_file(
+    path: Path,
+    seen_uids: Dict[str, Tuple[Path, int]],
+    seen_media: Dict[Tuple[str, str], Path],
+) -> List[Finding]:
     findings: List[Finding] = []
     raw = read_file(path)
     meta, _ = parse_markdown_file(path)
 
-    if meta.get(settings.DECK_TITLE_KEY) is None:
+    deck_name = normalize_deck_name(meta.get(settings.DECK_TITLE_KEY))
+    if deck_name is None:
         findings.append(
             Finding(path, 1, "error", "frontmatter is missing a 'deck' key")
         )
+    root = (deck_name or "").split("::")[0]
 
     body_start = frontmatter_end_offset(raw)
     body = raw[body_start:]
@@ -80,7 +89,7 @@ def _validate_file(path: Path, seen_uids: Dict[str, Tuple[Path, int]]) -> List[F
         matched_spans.append((match.start(), match.end()))
         line = line_at(raw, body_start + match.start())
         chunk = Chunk(body=match.group("body"), meta=match.group("meta"), file=file_obj)
-        findings.extend(_validate_chunk(chunk, path, line, seen_uids))
+        findings.extend(_validate_chunk(chunk, path, line, seen_uids, seen_media, root))
 
     findings.extend(_check_dropped_content(body, body_start, raw, matched_spans, path))
 
@@ -88,14 +97,24 @@ def _validate_file(path: Path, seen_uids: Dict[str, Tuple[Path, int]]) -> List[F
 
 
 def _validate_chunk(
-    chunk: Chunk, path: Path, line: int, seen_uids: Dict[str, Tuple[Path, int]]
+    chunk: Chunk,
+    path: Path,
+    line: int,
+    seen_uids: Dict[str, Tuple[Path, int]],
+    seen_media: Dict[Tuple[str, str], Path],
+    root: str,
 ) -> List[Finding]:
     findings: List[Finding] = []
 
     # Chunk-level validity (missing uid, note type) comes from the chunk
-    # itself; this function adds location and the deck-level duplicate check.
-    for message in chunk.validate():
+    # itself; this function adds location and the deck-level duplicate checks.
+    messages = chunk.validate()
+    for message in messages:
         findings.append(Finding(path, line, "error", message))
+
+    if not messages:
+        for message in _media_errors(chunk.images(), seen_media, root):
+            findings.append(Finding(path, line, "error", message))
 
     uid = chunk.uid
     if uid is not None:
@@ -113,6 +132,27 @@ def _validate_chunk(
             seen_uids[uid] = (path, line)
 
     return findings
+
+
+def _media_errors(
+    images: List[Path], seen_media: Dict[Tuple[str, str], Path], root: str
+) -> List[str]:
+    """Flags images that don't exist, and distinct files sharing a basename
+    within one top-level deck (Anki keys media by basename, so one would
+    clobber the other in the package)."""
+    errors: List[str] = []
+    for image in images:
+        if not image.is_file():
+            errors.append(f"image not found: {image}")
+            continue
+        resolved = image.resolve()
+        existing = seen_media.setdefault((root, image.name), resolved)
+        if existing != resolved:
+            errors.append(
+                f"media basename collision: '{image.name}' refers to both "
+                f"{existing} and {resolved}"
+            )
+    return errors
 
 
 def _check_dropped_content(

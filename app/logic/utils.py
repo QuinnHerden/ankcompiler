@@ -136,6 +136,17 @@ def get_url_regex_expression() -> str:
     )
 
 
+def normalize_deck_name(value: object) -> Optional[str]:
+    """Normalizes a frontmatter deck name the way Anki does on import: each
+    ``::``-separated part is trimmed and empty parts are dropped. Non-string
+    values (YAML ``deck: 2024``) are coerced to strings. Returns None when no
+    name is left."""
+    if value is None:
+        return None
+    parts = [part.strip() for part in str(value).split("::")]
+    return "::".join(part for part in parts if part) or None
+
+
 def clean_str_for_filename(text: str) -> str:
     """Cleans a string for use in filenames."""
     return re.sub("[^a-zA-Z0-9]", "-", text).lower()

@@ -1,7 +1,7 @@
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from genanki.deck import Deck as GenAnkiDeck
 from genanki.model import Model as GenAnkiModel
@@ -13,6 +13,7 @@ from app.logic.utils import (
     clean_str_for_filename,
     convert_md_to_html,
     generate_integer_hash,
+    normalize_deck_name,
     parse_markdown_file,
     search_markdown_files,
 )
@@ -34,11 +35,10 @@ class Deck:
     source_search_path: Path
     source_search_depth: Optional[int]
 
-    def compile(self, output_path: Path) -> None:
-        """Packages a deck."""
+    def build(self) -> Tuple[GenAnkiDeck, List[Path]]:
+        """Builds the deck's notes, returning the deck and its referenced media."""
         deck_id = generate_integer_hash(self.name)
         deck = GenAnkiDeck(deck_id=deck_id, name=self.name)
-        package = GenAnkiPackage(deck)
 
         chunks = self._get_chunks()
         images = []
@@ -53,40 +53,7 @@ class Deck:
                 )
             )
 
-        package.media_files = self._dedupe_media(images)
-
-        file_name = clean_str_for_filename(self.name)
-        write_path = Path(f"{output_path}/{file_name}.apkg")
-        package.write_to_file(write_path)
-
-    @staticmethod
-    def _dedupe_media(images: List[Path]) -> List[Path]:
-        """De-duplicate media paths, erroring on basename collisions.
-
-        Anki keys media by basename, so two distinct files sharing a name
-        (e.g. ``a/diagram.png`` and ``b/diagram.png``) would silently clobber
-        each other in the package. De-duplicate identical files (same resolved
-        path) and raise on a genuine basename collision.
-        """
-        by_basename: dict = {}  # basename -> resolved path
-        deduped: List[Path] = []
-
-        for image in images:
-            resolved = image.resolve()
-            existing = by_basename.get(image.name)
-
-            if existing is not None:
-                if existing == resolved:
-                    continue  # same file referenced again
-                raise ValueError(
-                    f"Media basename collision: '{image.name}' refers to both "
-                    f"{existing} and {resolved}"
-                )
-
-            by_basename[image.name] = resolved
-            deduped.append(image)
-
-        return deduped
+        return deck, images
 
     def _get_chunks(self) -> List["Chunk"]:
         """Returns list of all chunks within scope."""
@@ -119,7 +86,7 @@ class Deck:
         for file_path in markdown_files:
             meta = parse_markdown_file(file_path=file_path)[0]
 
-            deck_name = meta.get(settings.DECK_TITLE_KEY)
+            deck_name = normalize_deck_name(meta.get(settings.DECK_TITLE_KEY))
 
             if deck_name == self.name:
                 deck_paths.append(file_path)
@@ -133,6 +100,48 @@ class Deck:
         file = File(path=file_path, meta=meta, body=body)
 
         return file
+
+
+def dedupe_media(images: List[Path]) -> List[Path]:
+    """De-duplicate media paths, erroring on basename collisions.
+
+    Anki keys media by basename, so two distinct files sharing a name
+    (e.g. ``a/diagram.png`` and ``b/diagram.png``) would silently clobber
+    each other in the package. De-duplicate identical files (same resolved
+    path) and raise on a genuine basename collision.
+    """
+    by_basename: dict = {}  # basename -> resolved path
+    deduped: List[Path] = []
+
+    for image in images:
+        resolved = image.resolve()
+        existing = by_basename.get(image.name)
+
+        if existing is not None:
+            if existing == resolved:
+                continue  # same file referenced again
+            raise ValueError(
+                f"Media basename collision: '{image.name}' refers to both "
+                f"{existing} and {resolved}"
+            )
+
+        by_basename[image.name] = resolved
+        deduped.append(image)
+
+    return deduped
+
+
+def compile_package(name: str, decks: List[Deck], output_path: Path) -> None:
+    """Packages one or more decks into a single .apkg named after ``name``."""
+    built = [deck.build() for deck in decks]
+    package = GenAnkiPackage([genanki_deck for genanki_deck, _ in built])
+    package.media_files = dedupe_media(
+        [image for _, images in built for image in images]
+    )
+
+    file_name = clean_str_for_filename(name)
+    write_path = Path(f"{output_path}/{file_name}.apkg")
+    package.write_to_file(write_path)
 
 
 @dataclass
@@ -215,6 +224,11 @@ class Chunk:
         )
 
         return note
+
+    def images(self) -> List[Path]:
+        """Returns the image paths the chunk's fields reference."""
+        note_type = self._resolve_type(self._extract_meta())
+        return self._extract_images(self._extract_html_fields(note_type))
 
     @property
     def uid(self) -> Optional[str]:
