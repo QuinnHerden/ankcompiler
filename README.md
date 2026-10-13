@@ -10,6 +10,8 @@ Run `ankc --help` for usage information.
 Main commands:
 - `ankc build` compiles decks into `.apkg` packages.
   - Subdecks use Anki's `::` naming, e.g. `deck: Geo::Rivers`. `--deck Geo` packages `Geo` and every `Geo::...` subdeck into one `geo.apkg`. `--all` writes one package per top-level deck. Upgrading from 0.3.x: delete old per-subdeck packages (e.g. `geo--rivers.apkg`) from your output directory so they aren't re-imported.
+  - New cards are studied in source order: by deck name, then file path, then position in the file. Anki applies this order to cards it imports for the first time; it doesn't reorder cards already in a collection.
+- Tags: `tags:` in the frontmatter applies to every card in a file, and a `[^tag]: <tag>` footnote applies to one card. Footnote tags may use letters, digits, `_`, `-` and `::` (a hierarchical tag such as `tier::1`).
 - `ankc check` validates decks without compiling. It reports problems as `file:line`, and can print JSON with `--format json`. It also fails on missing images and on two different images sharing a filename.
 - `ankc uid` adds a `[^uid]` footnote to any card block that is missing one. It is append-only and safe to run more than once. Use `--check` for a dry run. It will not touch files with uncommitted git changes unless you pass `--force`.
   - Add `--fix` to also repair a draft deck whose cards are separated by a single `---`. It rewrites each card into a well-formed block and stamps any missing uids. Draft fast, then run `ankc uid --fix` to make the deck buildable. It only restructures real decks (frontmatter with a `deck:` key), so it is safe on non-drafts.
