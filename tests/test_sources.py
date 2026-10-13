@@ -106,6 +106,11 @@ class TestExtractMeta:
         assert meta["tag"] == ["t1", "t2"]
 
     @staticmethod
+    def test_hierarchical_tag_kept_whole():
+        chunk = Chunk(meta="[^uid]: abc1234567\n[^tag]: tier::1\n", body="", file=None)
+        assert chunk._extract_meta()["tag"] == ["tier::1"]
+
+    @staticmethod
     def test_missing_guid_yields_none():
         chunk = Chunk(meta="[^tag]: t1\n", body="", file=None)
         meta = chunk._extract_meta()

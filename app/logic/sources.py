@@ -134,6 +134,11 @@ def dedupe_media(images: List[Path]) -> List[Path]:
 def compile_package(name: str, decks: List[Deck], output_path: Path) -> None:
     """Packages one or more decks into a single .apkg named after ``name``."""
     built = [deck.build() for deck in decks]
+    # Anki keeps an imported new card's due value as its new-card position, so
+    # number notes in source order: deck, then file path, then block order.
+    notes = [note for genanki_deck, _ in built for note in genanki_deck.notes]
+    for position, note in enumerate(notes):
+        note.due = position
     package = GenAnkiPackage([genanki_deck for genanki_deck, _ in built])
     package.media_files = dedupe_media(
         [image for _, images in built for image in images]
@@ -265,10 +270,11 @@ class Chunk:
             settings.TYPE_KEY: None,
         }
 
-        # Value pattern is [\w-]+ (word chars + hyphen, e.g. "type-in"); keep
-        # in sync with the footnote value patterns in File.extract_chunks.
+        # Value pattern is word chars and hyphens (e.g. "type-in"), optionally
+        # in "::"-separated parts for a hierarchical tag ("tier::1"); keep in
+        # sync with the module-level *_FOOTNOTE patterns.
         matches = re.findall(
-            r"(\[\^(\w+)\]: *([\w-]+))", self.meta
+            r"(\[\^(\w+)\]: *([\w-]+(?:::[\w-]+)*))", self.meta
         )  # [^example_key]: example-value
 
         pairs = []

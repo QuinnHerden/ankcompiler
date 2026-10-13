@@ -23,6 +23,9 @@ def search_files(
     Hidden directories (names starting with ".") and symlinked directories are
     skipped, the latter to avoid symlink-cycle infinite recursion. Directories
     that cannot be read are logged and skipped.
+
+    Results are sorted by path so build order, and with it new-card order,
+    doesn't depend on the filesystem's directory listing order.
     """
 
     def search(current_dir: Path, current_depth: int) -> List[Path]:
@@ -30,7 +33,7 @@ def search_files(
             return []
 
         try:
-            items = list(current_dir.iterdir())
+            items = sorted(current_dir.iterdir())
         except OSError as exc:
             logging.warning("Could not read directory %s: %s", current_dir, exc)
             return []
