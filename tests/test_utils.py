@@ -120,6 +120,17 @@ class TestSearchFiles:
         found = sorted(p.name for p in search_files(".md", tmp_path))
         assert found == ["low.md", "mid.md", "top.md"]
 
+    def test_results_sorted_by_path(self, tmp_path):
+        for name in ["c.md", "a.md", "b.md"]:
+            (tmp_path / name).write_text("x")
+        sub = tmp_path / "a-sub"
+        sub.mkdir()
+        (sub / "z.md").write_text("x")
+        found = [
+            p.relative_to(tmp_path).as_posix() for p in search_files(".md", tmp_path)
+        ]
+        assert found == ["a-sub/z.md", "a.md", "b.md", "c.md"]
+
 
 class TestNormalizeDeckName:
     @staticmethod

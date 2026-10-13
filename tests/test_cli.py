@@ -27,6 +27,20 @@ def _package_deck_names(apkg):
     return {deck["name"] for deck in decks.values()} - {"Default"}
 
 
+def _package_new_cards(apkg):
+    """(due, guid, deck name) for each new card, in new-card order."""
+    with zipfile.ZipFile(apkg) as archive, tempfile.TemporaryDirectory() as tmp:
+        archive.extract("collection.anki2", tmp)
+        db = sqlite3.connect(Path(tmp) / "collection.anki2")
+        decks = json.loads(db.execute("select decks from col").fetchone()[0])
+        rows = db.execute(
+            "select c.due, n.guid, c.did from cards c join notes n on n.id = c.nid"
+            " where c.type = 0 and c.queue = 0 order by c.due"
+        ).fetchall()
+        db.close()
+    return [(due, guid, decks[str(did)]["name"]) for due, guid, did in rows]
+
+
 class TestEntry:
     @staticmethod
     def test_default():
@@ -289,6 +303,26 @@ class TestSubdecks:
         assert result.exit_code == 1
         assert "same package file" in result.stdout
         assert not list(out.glob("*.apkg"))
+
+    @staticmethod
+    def test_new_cards_numbered_in_source_order(tmp_path):
+        src, out = TestSubdecks._tree(tmp_path)
+        (src / "a.md").write_text(
+            "---\ndeck: Geo::Rivers::Tier 1\n---\n"
+            "---\n\nq1 ::: a\n\n---\n[^uid]: aaaaaaaaa1\n\n"
+            "---\n\nq2 ::: a\n\n---\n[^uid]: aaaaaaaaa6\n"
+        )
+        _write_deck(src, "0.md", "Geo::Rivers::Tier 1", "aaaaaaaaa7")
+        result = TestSubdecks._build(src, out, "--deck", "Geo")
+        assert result.exit_code == 0
+        # deck name order, then file path, then block order within a file
+        assert _package_new_cards(out / "geo.apkg") == [
+            (0, "aaaaaaaaa0", "Geo"),
+            (1, "aaaaaaaaa7", "Geo::Rivers::Tier 1"),
+            (2, "aaaaaaaaa1", "Geo::Rivers::Tier 1"),
+            (3, "aaaaaaaaa6", "Geo::Rivers::Tier 1"),
+            (4, "aaaaaaaaa2", "Geo::Rivers::Tier 2"),
+        ]
 
     @staticmethod
     def test_build_rejects_deck_and_all_together(tmp_path):
