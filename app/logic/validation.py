@@ -7,10 +7,13 @@ from app.config import settings
 from app.logic.sources import (
     GUID_FOOTNOTE,
     NOTE_BODY,
+    POS_FOOTNOTE,
     TAG_FOOTNOTE,
     TYPE_FOOTNOTE,
     Chunk,
     File,
+    Placement,
+    position_problems,
 )
 from app.logic.utils import (
     frontmatter_end_offset,
@@ -23,7 +26,7 @@ from app.logic.utils import (
 # Same block grammar as File.extract_chunks (shared sub-patterns), but with
 # named groups and finditer so we can report line numbers.
 _NOTE = rf"(?:---\n\s*\n+(?P<body>{NOTE_BODY})\n\s*\n---\n+)"
-_META = rf"(?P<meta>(?:{GUID_FOOTNOTE}|{TAG_FOOTNOTE}|{TYPE_FOOTNOTE})*)"
+_META = rf"(?P<meta>(?:{GUID_FOOTNOTE}|{TAG_FOOTNOTE}|{TYPE_FOOTNOTE}|{POS_FOOTNOTE})*)"
 _BLOCK_RE = re.compile(_NOTE + _META)
 
 # A footnote line ("[^uid]: ...") is benign outside a matched block.
@@ -49,13 +52,19 @@ class Finding:
 def validate_files(file_paths: List[Path]) -> List[Finding]:
     """Validates the given source files, returning all findings (deck-wide:
     duplicate uids are detected across the whole set; media basename collisions
-    within each top-level deck, since that is what one package holds)."""
+    and [^pos] rules within each top-level deck, since that is what one package
+    holds)."""
     findings: List[Finding] = []
     seen_uids: Dict[str, Tuple[Path, int]] = {}
     seen_media: Dict[Tuple[str, str], Path] = {}
+    placements: Dict[str, List[Placement]] = {}
 
     for path in file_paths:
-        findings.extend(_validate_file(path, seen_uids, seen_media))
+        findings.extend(_validate_file(path, seen_uids, seen_media, placements))
+
+    for package in placements.values():
+        for placement, message in position_problems(package):
+            findings.append(Finding(placement.path, placement.line, "error", message))
 
     return findings
 
@@ -64,6 +73,7 @@ def _validate_file(
     path: Path,
     seen_uids: Dict[str, Tuple[Path, int]],
     seen_media: Dict[Tuple[str, str], Path],
+    placements: Dict[str, List[Placement]],
 ) -> List[Finding]:
     findings: List[Finding] = []
     raw = read_file(path)
@@ -90,6 +100,7 @@ def _validate_file(
         line = line_at(raw, body_start + match.start())
         chunk = Chunk(body=match.group("body"), meta=match.group("meta"), file=file_obj)
         findings.extend(_validate_chunk(chunk, path, line, seen_uids, seen_media, root))
+        placements.setdefault(root, []).append(_placement(chunk, path, line))
 
     findings.extend(_check_dropped_content(body, body_start, raw, matched_spans, path))
 
@@ -132,6 +143,22 @@ def _validate_chunk(
             seen_uids[uid] = (path, line)
 
     return findings
+
+
+def _placement(chunk: Chunk, path: Path, line: int) -> Placement:
+    """The chunk's position for the package rules. A malformed [^pos] is
+    reported by Chunk.validate and counts as declared but without a value."""
+    try:
+        position = chunk.position
+    except ValueError:
+        position = None
+    return Placement(
+        uid=chunk.uid,
+        declared=chunk.has_position,
+        position=position,
+        path=path,
+        line=line,
+    )
 
 
 def _media_errors(
