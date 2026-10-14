@@ -300,3 +300,54 @@ class TestGitGate:
         result = runner.invoke(app, ["uid", "--path", str(tmp_path)])
         assert result.exit_code == 0
         assert len(_UID_LINE.findall(deck.read_text())) == 3
+
+
+POSITIONED = (
+    "---\ndeck: foo\n---\n"
+    "---\n\nq1 ::: a1\n\n---\n[^pos]: 7\n\n"  # pos only, needs uid
+    "---\n\nq2 ::: a2\n\n---\n[^uid]: abc1234567\n[^pos]: 3\n"
+)
+
+
+class TestPositionFootnotes:
+    def test_stamp_keeps_pos_lines(self):
+        new_text, lines = stamp_text(POSITIONED)
+        assert len(lines) == 1
+        assert "\n[^pos]: 7\n" in new_text
+        assert "[^uid]: abc1234567\n[^pos]: 3\n" in new_text
+        assert stamp_text(new_text) == (new_text, [])
+
+    def test_stamped_file_keeps_positions(self, tmp_path):
+        path = tmp_path / "deck.md"
+        path.write_text(POSITIONED)
+        stamp_file(path, tmp_path, dry_run=False)
+        assert validate_files([path]) == []
+        text = path.read_text()
+        assert "[^pos]: 7" in text and "[^pos]: 3" in text
+
+    def test_fix_canonical_keeps_pos_lines(self):
+        new_text, _, uids = fix_text(POSITIONED)
+        assert uids == 1
+        assert "\n[^pos]: 7\n" in new_text
+        assert "[^uid]: abc1234567\n[^pos]: 3\n" in new_text
+
+    def test_fix_draft_keeps_pos_lines(self, tmp_path):
+        # glued and separate [^pos] footnotes both survive the rebuild
+        path = tmp_path / "deck.md"
+        path.write_text(
+            "---\ndeck: foo\n---\n\nq1 ::: a1\n[^pos]: 1\n\n"
+            "---\n\nq2 ::: a2\n\n---\n[^pos]: 0\n\n---\n\nq3 ::: a3\n\n---\n"
+            "[^uid]: keepthis01\n[^pos]: 2\n"
+        )
+        result = fix_file(path, tmp_path, dry_run=False)
+        assert result.changed and result.card_count == 3 and result.uids_added == 2
+        text = path.read_text()
+        assert re.search(r"q1 ::: a1\n\n---\n\[\^uid\]: \w{10}\n\[\^pos\]: 1\n", text)
+        assert re.search(r"q2 ::: a2\n\n---\n\[\^uid\]: \w{10}\n\[\^pos\]: 0\n", text)
+        assert "q3 ::: a3\n\n---\n[^uid]: keepthis01\n[^pos]: 2\n" in text
+        assert validate_files([path]) == []
+
+    def test_uid_after_blank_line_not_restamped(self):
+        text = "---\ndeck: foo\n---\n---\n\nq ::: a\n\n---\n[^pos]: 3\n\n[^uid]: abcdefghij\n"
+        assert stamp_text(text) == (text, [])
+        assert fix_text(text) == (text, 1, 0)

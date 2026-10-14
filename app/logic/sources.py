@@ -1,7 +1,7 @@
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from genanki.deck import Deck as GenAnkiDeck
 from genanki.model import Model as GenAnkiModel
@@ -20,13 +20,21 @@ from app.logic.utils import (
 
 # Shared note-block grammar — single source of truth for the chunk parser
 # (File.extract_chunks) and the validator (app.logic.validation). Footnotes
-# (uid/tag/type) may follow a block in any order.
+# (uid/tag/type/pos) may follow a block in any order.
 GUID_FOOTNOTE = rf"(?:\[\^{settings.GUID_KEY}\]: *[A-Za-z0-9]{{10}}\n+)"
 TAG_FOOTNOTE = rf"(?:\[\^{settings.TAG_KEY}\]: *.+?\n+)"
 TYPE_FOOTNOTE = rf"(?:\[\^{settings.TYPE_KEY}\]: *.+?\n+)"
+# Any value, even an empty one, is captured so a malformed position is
+# reported, not ignored.
+POS_FOOTNOTE = rf"(?:\[\^{settings.POS_KEY}\]:[^\n]*\n+)"
 # Block body between the "---" delimiters. A single character class (rather
 # than an ambiguous (.|\n) alternation) to avoid catastrophic backtracking.
 NOTE_BODY = r"[\s\S]+?"
+
+# A [^pos] becomes the new card's due. Anki warns at 1,000,000 or more, and
+# Check Database rewrites values of 2,000,000 or more.
+POSITION_LIMIT = 1_000_000
+_POS_VALUE_RE = re.compile(rf"^\[\^{settings.POS_KEY}\]:[ \t]*([^\n]*)$", re.MULTILINE)
 
 
 @dataclass
@@ -35,25 +43,21 @@ class Deck:
     source_search_path: Path
     source_search_depth: Optional[int]
 
-    def build(self) -> Tuple[GenAnkiDeck, List[Path]]:
-        """Builds the deck's notes, returning the deck and its referenced media."""
+    def build(self) -> Tuple[GenAnkiDeck, List["Note"]]:
+        """Builds the deck, returning it and its source notes in the same order
+        as the deck's genanki notes."""
         deck_id = generate_integer_hash(self.name)
         deck = GenAnkiDeck(deck_id=deck_id, name=self.name)
 
-        chunks = self._get_chunks()
-        images = []
-        for chunk in chunks:
-            note = chunk.extract_note()
-
-            images.extend(note.images)
-
+        notes = [chunk.extract_note() for chunk in self._get_chunks()]
+        for note in notes:
             deck.add_note(
                 GenAnkiNote(
                     model=note.model, fields=note.fields, tags=note.tags, guid=note.guid
                 )
             )
 
-        return deck, images
+        return deck, notes
 
     def _get_chunks(self) -> List["Chunk"]:
         """Returns list of all chunks within scope."""
@@ -131,17 +135,94 @@ def dedupe_media(images: List[Path]) -> List[Path]:
     return deduped
 
 
+@dataclass
+class Placement:
+    """A note's ``[^pos]`` and location, for the package-wide position rules."""
+
+    uid: Optional[str]
+    declared: bool  # has a [^pos] footnote, even a malformed one
+    position: Optional[int]  # None when absent or malformed
+    path: Path
+    line: Optional[int] = None
+
+    def label(self) -> str:
+        location = f"{self.path}:{self.line}" if self.line else str(self.path)
+        return f"uid {self.uid} at {location}" if self.uid else location
+
+
+def position_problems(placements: List[Placement]) -> List[Tuple[Placement, str]]:
+    """Checks one package's ``[^pos]`` rules: all notes or none declare one,
+    and no two share a value. Returns (card to report at, message) pairs."""
+    key = settings.POS_KEY
+    positioned = [p for p in placements if p.declared]
+    unpositioned = [p for p in placements if not p.declared]
+    problems: List[Tuple[Placement, str]] = []
+
+    if positioned and unpositioned:
+        problems.append(
+            (
+                unpositioned[0],
+                f"package mixes cards with and without [^{key}]; use it on every "
+                f"card or none. Missing in: {_file_list(unpositioned)}. "
+                f"Present in: {_file_list(positioned)}",
+            )
+        )
+
+    seen: Dict[int, Placement] = {}
+    for placement in positioned:
+        if placement.position is None:
+            continue
+        first = seen.setdefault(placement.position, placement)
+        if first is not placement:
+            problems.append(
+                (
+                    placement,
+                    f"duplicate [^{key}] {placement.position}: {placement.label()} "
+                    f"and {first.label()}",
+                )
+            )
+
+    return problems
+
+
+def _file_list(placements: List[Placement]) -> str:
+    return ", ".join(sorted({str(p.path) for p in placements}))
+
+
 def compile_package(name: str, decks: List[Deck], output_path: Path) -> None:
     """Packages one or more decks into a single .apkg named after ``name``."""
     built = [deck.build() for deck in decks]
-    # Anki keeps an imported new card's due value as its new-card position, so
-    # number notes in source order: deck, then file path, then block order.
-    notes = [note for genanki_deck, _ in built for note in genanki_deck.notes]
-    for position, note in enumerate(notes):
-        note.due = position
+    pairs = [
+        (anki_note, note)
+        for genanki_deck, notes in built
+        for anki_note, note in zip(genanki_deck.notes, notes, strict=True)
+    ]
+
+    problems = position_problems(
+        [
+            Placement(
+                uid=note.guid,
+                declared=note.position is not None,
+                position=note.position,
+                path=note.source.path,
+            )
+            for _, note in pairs
+        ]
+    )
+    if problems:
+        details = "; ".join(message for _, message in problems)
+        raise ValueError(f"package '{name}': {details}")
+
+    # Anki keeps an imported new card's due value as its new-card position.
+    # Use each note's [^pos] when the package declares them; otherwise number
+    # notes in source order: deck, then file path, then block order. Every card
+    # of a note shares the note's due.
+    for index, (anki_note, note) in enumerate(pairs):
+        anki_note.due = index if note.position is None else note.position
+
     package = GenAnkiPackage([genanki_deck for genanki_deck, _ in built])
     package.media_files = dedupe_media(
-        [image for _, images in built for image in images]
+        [image for _, notes in built for note in notes for image in note.images]
     )
 
     file_name = clean_str_for_filename(name)
@@ -158,7 +239,9 @@ class File:
     def extract_chunks(self) -> List["Chunk"]:
         """Splits markdown file into list of its note chunks."""
 
-        meta_exp = rf"((?:{GUID_FOOTNOTE}|{TAG_FOOTNOTE}|{TYPE_FOOTNOTE})*)"
+        meta_exp = (
+            rf"((?:{GUID_FOOTNOTE}|{TAG_FOOTNOTE}|{TYPE_FOOTNOTE}|{POS_FOOTNOTE})*)"
+        )
         note_exp = rf"(?:---\n\s*\n+({NOTE_BODY})\n\s*\n---\n+)"  # triple "-" delimited
         combined_exp = rf"({note_exp}{meta_exp}?)"
 
@@ -166,7 +249,7 @@ class File:
 
         note_chunks = []
         for match in card_matches:
-            chunk = Chunk(body=match[1], meta=match[0], file=self)
+            chunk = Chunk(body=match[1], meta=match[2], file=self)
             note_chunks.append(chunk)
 
         return note_chunks
@@ -226,6 +309,7 @@ class Chunk:
             tags=tags,
             source=self.file,
             images=images,
+            position=self.position,
         )
 
         return note
@@ -240,17 +324,50 @@ class Chunk:
         """The note's declared uid, or None if it has none."""
         return self._extract_meta().get(settings.GUID_KEY)
 
+    @property
+    def has_position(self) -> bool:
+        """Whether the note has a ``[^pos]`` footnote, valid or not."""
+        return bool(_POS_VALUE_RE.search(self.meta))
+
+    @property
+    def position(self) -> Optional[int]:
+        """The note's ``[^pos]``, or None if it has none. Raises ValueError
+        when the footnote is repeated or not an integer in range."""
+        key = settings.POS_KEY
+        values = _POS_VALUE_RE.findall(self.meta)
+        if not values:
+            return None
+        if len(values) > 1:
+            raise ValueError(f"more than one [^{key}] footnote on a card")
+        value = values[0].rstrip(" \t")
+        # The length cap keeps int() cheap on hostile input.
+        if (
+            len(value) > len(str(POSITION_LIMIT))
+            or not re.fullmatch(r"[0-9]+", value)
+            or int(value) >= POSITION_LIMIT
+        ):
+            raise ValueError(
+                f"invalid [^{key}] {value[:20]!r}: must be a whole number from 0 "
+                f"to {POSITION_LIMIT - 1}"
+            )
+        return int(value)
+
     def validate(self) -> List[str]:
         """Returns chunk-level validation errors, empty when the chunk is
-        valid. Covers a missing uid and an unresolvable or mismatched note
-        type. Deck-level checks (duplicate uid, frontmatter) live in the
-        caller."""
+        valid. Covers a missing uid, a malformed position, and an unresolvable
+        or mismatched note type. Deck-level checks (duplicate uid or position,
+        frontmatter) live in the caller."""
         errors: List[str] = []
         meta_dict = self._extract_meta()
 
         if meta_dict.get(settings.GUID_KEY) is None:
             snippet = self.body.strip().splitlines()[0][:50]
             errors.append(f'card block missing uid: "{snippet}"')
+
+        try:
+            self.position
+        except ValueError as exc:
+            errors.append(str(exc))
 
         try:
             note_type = self._resolve_type(meta_dict)
@@ -381,6 +498,7 @@ class Note:
     tags: List[str]
     source: File
     images: List[Path]
+    position: Optional[int] = None
 
 
 @dataclass
