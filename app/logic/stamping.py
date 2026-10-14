@@ -20,8 +20,9 @@ from app.logic.utils import (
 # do not reuse the combined chunk regex: stamping operates on raw file text
 # (frontmatter intact) and only needs the block boundary, not the metadata.
 _BLOCK_RE = re.compile(rf"---\n\s*\n+{NOTE_BODY}\n\s*\n---\n")
-# Contiguous footnote lines immediately following a block.
-_FOOTNOTES_RE = re.compile(r"(?:\[\^\w+\]: *.+?\n)*")
+# Footnote lines following a block, with blank lines allowed between them
+# (matching the compiler's footnote grammar).
+_FOOTNOTES_RE = re.compile(r"(?:\[\^\w+\]: *.+?\n+)*")
 _UID_RE = re.compile(rf"\[\^{settings.GUID_KEY}\]:")
 # A uid footnote the compiler will accept: exactly 10 alphanumerics. Must stay
 # in sync with GUID_FOOTNOTE in app.logic.sources. A "[^uid]:" footnote whose

@@ -4,11 +4,12 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     """Project settings"""
 
-    VERSION: str = "0.5.0"
+    VERSION: str = "0.6.0"
     DECK_TITLE_KEY: str = "deck"
     GUID_KEY: str = "uid"
     TAG_KEY: str = "tag"
     TYPE_KEY: str = "type"
+    POS_KEY: str = "pos"
     META_TAG_KEY: str = "tags"
     MASTER_STYLESHEET: str = "_stylesheet.css"
 

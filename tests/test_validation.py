@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from app.logic.validation import (
     findings_to_dicts,
     format_findings,
@@ -130,3 +132,75 @@ class TestFormatting:
         dicts = findings_to_dicts(findings)
         assert dicts[0]["level"] == "error"
         assert dicts[0]["file"] == str(path)
+
+
+POSITIONS = Path(__file__).parent / "decks" / "positions"
+
+
+def _fixture_files(name):
+    return sorted((POSITIONS / name).glob("*.md"))
+
+
+class TestPositions:
+    def test_valid_positions_have_no_findings(self):
+        assert validate_files(_fixture_files("valid")) == []
+
+    def test_no_positions_has_no_findings(self):
+        assert validate_files(_fixture_files("unpositioned")) == []
+
+    def test_mixed_names_files_at_first_unpositioned_card(self):
+        findings = validate_files(_fixture_files("mixed"))
+        assert len(findings) == 1
+        finding = findings[0]
+        assert finding.file.name == "b.md" and finding.line == 4
+        assert "mixes cards with and without [^pos]" in finding.message
+        assert "mixed/a.md" in finding.message and "mixed/b.md" in finding.message
+
+    def test_duplicate_names_both_cards(self):
+        findings = validate_files(_fixture_files("duplicate"))
+        assert len(findings) == 1
+        finding = findings[0]
+        assert finding.format().startswith(f"{POSITIONS}/duplicate/b.md:4: error:")
+        assert "duplicate [^pos] 5" in finding.message
+        assert f"dupe000001 at {POSITIONS}/duplicate/a.md:4" in finding.message
+        assert f"dupe000002 at {POSITIONS}/duplicate/b.md:4" in finding.message
+
+    def test_invalid_values_reported_at_card_line(self):
+        findings = validate_files(_fixture_files("invalid"))
+        assert [(f.line, f.message) for f in findings] == [
+            (4, "invalid [^pos] '1000000': must be a whole number from 0 to 999999"),
+            (12, "invalid [^pos] '-1': must be a whole number from 0 to 999999"),
+            (20, "invalid [^pos] '1.5': must be a whole number from 0 to 999999"),
+        ]
+
+    def test_rules_apply_per_top_level_deck(self, tmp_path):
+        positioned = write_deck(
+            tmp_path,
+            "---\ndeck: one\n---\n---\n\nq ::: a\n\n---\n"
+            "[^uid]: abc1234567\n[^pos]: 0\n",
+            name="one.md",
+        )
+        unpositioned = write_deck(
+            tmp_path,
+            "---\ndeck: two\n---\n---\n\nq ::: a\n\n---\n[^uid]: abc1234568\n",
+            name="two.md",
+        )
+        same_pos = write_deck(
+            tmp_path,
+            "---\ndeck: two::sub\n---\n---\n\nq ::: b\n\n---\n"
+            "[^uid]: abc1234569\n[^pos]: 0\n",
+            name="sub.md",
+        )
+        assert validate_files([positioned, unpositioned]) == []
+        mixed = validate_files([positioned, unpositioned, same_pos])
+        assert [f.file for f in mixed] == [unpositioned]
+
+    def test_empty_position_reported(self, tmp_path):
+        path = write_deck(
+            tmp_path,
+            "---\ndeck: foo\n---\n---\n\nq ::: a\n\n---\n[^pos]:\n[^uid]: abc1234567\n",
+        )
+        findings = validate_files([path])
+        assert [(f.line, f.message) for f in findings] == [
+            (4, "invalid [^pos] '': must be a whole number from 0 to 999999")
+        ]
